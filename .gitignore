@@ -1,3 +1,4 @@
 /.Rhistory
 #/tests/local/
 .Rproj.user
+/data/out.rds
