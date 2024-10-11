@@ -14,16 +14,6 @@
 run_MCMC_allcode <- function(seed, data, constants, code, niter, nburnin, useWAIC = WAIC, inits, thin, ...) {
   ## See Nimble cheat sheet: https://r-nimble.org/cheatsheets/NimbleCheatSheet.pdf
   
-  uppertri_mult_diag <- nimbleFunction(
-    run = function(mat = double(2), vec = double(1)) {
-      returnType(double(2))
-      p <- length(vec)
-      out <- matrix(nrow = p, ncol = p, init = FALSE)
-      for(i in 1:p)
-        out[ , i] <- mat[ , i] * vec[i]
-      return(out)
-    })
-  
   
   ## Create model object
   myModel <- nimble::nimbleModel(code = code,
@@ -74,6 +64,17 @@ run_MCMC_allcode <- function(seed, data, constants, code, niter, nburnin, useWAI
 #' @importFrom stats as.formula model.matrix rlnorm rnorm update.formula dnorm
 #' @importFrom utils head str
 #' @export 
+
+uppertri_mult_diag <- nimbleFunction(
+  run = function(mat = double(2), vec = double(1)) {
+    returnType(double(2))
+    p <- length(vec)
+    out <- matrix(nrow = p, ncol = p, init = FALSE)
+    for(i in 1:p)
+      out[ , i] <- mat[ , i] * vec[i]
+    return(out)
+  })
+
 ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WAIC = TRUE, workers = 4,...) {
   if(is.null(nburnin)) {
     nburnin <- niter
@@ -100,8 +101,7 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
                 zeta =  rnorm(constants$S, 1, 3),
                 sigma_rand = rlnorm(constants$P, 0, 1),
                 L = diag(1,constants$P) )
-
-
+  
   modelCode <- nimbleCode({
     ## Likelihood components:
     for(i in 1:N) {
@@ -172,10 +172,32 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   ## are not loaded onto the workers! All changes to run_MCMC_allcode only take effect after reinstalling. 
   future::plan(multisession, workers = workers)
 
-  results <- future_lapply(1:workers, function(x) run_MCMC_allcode(seed = x, data = data, constants = constants,
-                                                                   code = modelCode, niter = niter, nburnin = nburnin,
-                                                                   useWAIC = WAIC, inits = inits, ...),
-                           future.seed = TRUE, future.packages = c("nimble"))
+  # results <- future_lapply(1:workers, function(x) run_MCMC_allcode(seed = x, data = data, constants = constants,
+  #                                                                  code = modelCode, niter = niter, nburnin = nburnin,
+  #                                                                  useWAIC = WAIC, inits = inits, ...),
+  #                          future.seed = TRUE, future.packages = c("nimble"))
+  
+  results <- future_lapply(1:workers, function(x) run_MCMC_allcode(seed = x, 
+                                                                   data = data, 
+                                                                   constants = constants,
+                                                                   code = modelCode, 
+                                                                   niter = niter, 
+                                                                   nburnin = nburnin,
+                                                                   useWAIC = WAIC, 
+                                                                   inits = inits),
+                           future.seed = TRUE, 
+                           future.packages = c("nimble"), 
+                           future.globals = list(
+                             uppertri_mult_diag = uppertri_mult_diag,  # Custom nimble function
+                             run_MCMC_allcode = run_MCMC_allcode,      # Custom MCMC function
+                             data = data,                              # Data object
+                             constants = constants,                    # Constants list
+                             modelCode = modelCode,                    # Nimble model code
+                             niter = niter,                            # Number of iterations
+                             nburnin = nburnin,                        # Burn-in
+                             WAIC = WAIC,                              # WAIC option
+                             inits = inits                             # Initial values
+                           ))
 
   ## Prepare object to be returned
   out <- list()
