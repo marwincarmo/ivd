@@ -8,10 +8,13 @@
 ##' @param nburnin Inherits from ivd
 ##' @param useWAIC Inherits from ivd
 ##' @param inits Inherits from ivd
+##' @param ... additional arguments
 ##' @import nimble
 ##' @export
-run_MCMC_allcode <- function(seed, data, constants, code, niter, nburnin, useWAIC = WAIC, inits) {
+run_MCMC_allcode <- function(seed, data, constants, code, niter, nburnin, useWAIC = WAIC, inits, thin, ...) {
   ## See Nimble cheat sheet: https://r-nimble.org/cheatsheets/NimbleCheatSheet.pdf
+  
+  
   ## Create model object
   myModel <- nimble::nimbleModel(code = code,
                                  data = data,
@@ -37,7 +40,7 @@ run_MCMC_allcode <- function(seed, data, constants, code, niter, nburnin, useWAI
   compMCMC <- nimble::compileNimble(myMCMC, project = cmpModel)
   
   ## Run model
-  results <- nimble::runMCMC(compMCMC, niter = niter, setSeed = seed, nburnin = nburnin, WAIC = useWAIC)
+  results <- nimble::runMCMC(compMCMC, niter = niter, setSeed = seed, nburnin = nburnin, WAIC = useWAIC, thin = thin, ...)
   return( results )
 }
 
@@ -61,6 +64,17 @@ run_MCMC_allcode <- function(seed, data, constants, code, niter, nburnin, useWAI
 #' @importFrom stats as.formula model.matrix rlnorm rnorm update.formula dnorm
 #' @importFrom utils head str
 #' @export 
+
+uppertri_mult_diag <- nimbleFunction(
+  run = function(mat = double(2), vec = double(1)) {
+    returnType(double(2))
+    p <- length(vec)
+    out <- matrix(nrow = p, ncol = p, init = FALSE)
+    for(i in 1:p)
+      out[ , i] <- mat[ , i] * vec[i]
+    return(out)
+  })
+
 ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WAIC = TRUE, workers = 4,...) {
   if(is.null(nburnin)) {
     nburnin <- niter
@@ -85,10 +99,8 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   ## Nimble inits
   inits <- list(beta = rnorm(constants$K, 5, 10), ## TODO: Check inits
                 zeta =  rnorm(constants$S, 1, 3),
-                sigma_rand = diag(rlnorm(constants$P, 0, 1)),
+                sigma_rand = rlnorm(constants$P, 0, 1),
                 L = diag(1,constants$P) )
-
-
   
   modelCode <- nimbleCode({
     ## Likelihood components:
@@ -134,7 +146,7 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
       }
       ## Transpose L to get lower cholesky
       ## then compute the hadamard (element-wise) product with the ss vector
-      u[j,1:P] <- t( sigma_rand[1:P, 1:P] %*% L[1:P, 1:P]  %*% z[1:P,j] * ss[1:P,j] )
+      u[j,1:P] <- uppertri_mult_diag(L[1:P, 1:P], sigma_rand[1:P]) %*% z[1:P,j] * ss[1:P,j] 
     }
     ## Priors:
     ## Fixed effects: Location
@@ -147,7 +159,7 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
     }  
     ## Random effects SD
     for(p in 1:P){
-      sigma_rand[p,p] ~ T(dt(0, 1, 3), 0, )
+      sigma_rand[p] ~ T(dt(0, 1, 3), 0, )
     }
     ## Lower cholesky of random effects correlation 
     L[1:P, 1:P] ~ dlkj_corr_cholesky(eta = 1, p = P)
@@ -160,10 +172,32 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   ## are not loaded onto the workers! All changes to run_MCMC_allcode only take effect after reinstalling. 
   future::plan(multisession, workers = workers)
 
-  results <- future_lapply(1:workers, function(x) run_MCMC_allcode(seed = x, data = data, constants = constants,
-                                                                   code = modelCode, niter = niter, nburnin = nburnin,
-                                                                   useWAIC = WAIC, inits = inits),
-                           future.seed = TRUE, future.packages = c("nimble"))
+  # results <- future_lapply(1:workers, function(x) run_MCMC_allcode(seed = x, data = data, constants = constants,
+  #                                                                  code = modelCode, niter = niter, nburnin = nburnin,
+  #                                                                  useWAIC = WAIC, inits = inits, ...),
+  #                          future.seed = TRUE, future.packages = c("nimble"))
+  
+  results <- future_lapply(1:workers, function(x) run_MCMC_allcode(seed = x, 
+                                                                   data = data, 
+                                                                   constants = constants,
+                                                                   code = modelCode, 
+                                                                   niter = niter, 
+                                                                   nburnin = nburnin,
+                                                                   useWAIC = WAIC, 
+                                                                   inits = inits),
+                           future.seed = TRUE, 
+                           future.packages = c("nimble"), 
+                           future.globals = list(
+                             uppertri_mult_diag = uppertri_mult_diag,  # Custom nimble function
+                             run_MCMC_allcode = run_MCMC_allcode,      # Custom MCMC function
+                             data = data,                              # Data object
+                             constants = constants,                    # Constants list
+                             modelCode = modelCode,                    # Nimble model code
+                             niter = niter,                            # Number of iterations
+                             nburnin = nburnin,                        # Burn-in
+                             WAIC = WAIC,                              # WAIC option
+                             inits = inits                             # Initial values
+                           ))
 
   ## Prepare object to be returned
   out <- list()
