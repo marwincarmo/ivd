@@ -262,6 +262,30 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   for (i in seq_along(x)) {
     samples_array[, i, ] <- x[[i]]
   }
+  
+  colnames(combined_chains[[1]]$samples)[1:6]
+  
+  W=mean( c(var(combined_chains[[1]]$samples[,2]), var(combined_chains[[2]]$samples[,2]), var(combined_chains[[3]]$samples[,2]), var(combined_chains[[4]]$samples[,2])))
+  B=var( c(mean(combined_chains[[1]]$samples[,2]), mean(combined_chains[[2]]$samples[,2]), mean(combined_chains[[3]]$samples[,2]), mean(combined_chains[[4]]$samples[,2])))
+  n=length(combined_chains[[1]]$samples[,2])*4
+  Rhat <- sqrt( ( ((n-1)*W/n) + B ) / W )
+  Rhat
+  m=8
+  varest <- ( ((n-1)*W/n) + (B/n) ) 
+  ## Illustrate for a single chain
+  
+  stan_samp=
+  sumr <- 1
+  i <- 0
+  while(sumr > 0 ) {
+    i <- i + 1
+    r1 <- acf(stan_samp[,1], plot =  FALSE , lag.max =  i-1)$acf
+    r2 <- acf(stan_samp[,1], plot =  FALSE , lag.max =  i)$acf
+    sumr <- c(r1)[i]+c(r2)[i+1]
+  }
+  
+  sumr
+  
   ## Use the monitor function from rstan to obtain Rhat (coda's gelman.rhat does not work reliably)
   print("Compiling results...")
   monitor_results <- rstan::monitor(samples_array, print = FALSE)
