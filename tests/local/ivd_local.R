@@ -57,7 +57,7 @@ nrow(school_dat )
 out <- ivd(location_formula = mAch_s ~  meanses + ( 1 | schoolid),
            scale_formula =  ~ meanses  + (1 | schoolid),
            data = school_dat, thin = 2,
-           niter = 1000, nburnin = 1000, WAIC = TRUE, workers = 8)
+           niter = 2000, nburnin = 2000, WAIC = TRUE, workers = 4)
 
 summary(out)
 

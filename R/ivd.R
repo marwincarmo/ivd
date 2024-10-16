@@ -30,7 +30,7 @@ run_MCMC_allcode <- function(seed, data, constants, code, niter, nburnin, useWAI
   if (useWAIC) {
     config$enableWAIC <- useWAIC
   }
-  config$monitors <- c("beta", "zeta", "R", "ss", "sigma_rand", "u")
+  config$monitors <- c("beta", "zeta", "R", "ss", "sigma_rand", "u")#,"Sigma", "chol_Sigma")
   config$addMonitors(c("mu", "tau"))
   
   ## build mcmc object
@@ -102,6 +102,8 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
                 sigma_rand = rlnorm(constants$P, 0, 1),
                 L = diag(1,constants$P) )
   
+  identityMatrix <- diag(1, constants$P)
+  
   modelCode <- nimbleCode({
     ## Likelihood components:
     for(i in 1:N) {
@@ -166,6 +168,7 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
     ##
     R[1:P, 1:P] <- t(L[1:P, 1:P] ) %*% L[1:P, 1:P]
   })
+  
 
 
   ## IMPORTANT: future loads the installed library on its workers - changes in the package that are not in the library(ivd)
