@@ -16,10 +16,10 @@ for( i in unique(school_dat$school) ) {
 
 school_dat$mAch_s <- scale(school_dat$mAch,  center = TRUE,  scale = TRUE )
 
-location_formula = mAch_s ~  meanses + ( 1 | schoolid)
-scale_formula =  ~ meanses  + (1 | schoolid)
+location_formula = mAch_s ~  1 + ( 1 | schoolid)
+scale_formula =  ~ 1  + (1 | schoolid)
 data = school_dat
-niter = 2000
+niter = 1000
 nburnin = 2000
 WAIC = TRUE
 workers = 4
@@ -43,7 +43,7 @@ run_MCMC_allcode <- function(seed, data, constants, code, niter, nburnin, useWAI
   if (useWAIC) {
     config$enableWAIC <- useWAIC
   }
-  config$monitors <- c("beta", "zeta", "ss", "sigma_rand", "u", "R", "chol_Sigma")
+  config$monitors <- c("beta", "zeta", "ss", "sigma_rand", "u", "R",  "Omega", "chol_Omega")
   config$addMonitors(c("mu", "tau"))
   
   ## build mcmc object
@@ -90,11 +90,9 @@ uppertri_mult_diag <- nimbleFunction(
                 zeta =  rnorm(constants$S, 1, 3),
                 sigma_rand = rlnorm(constants$P, 0, 1),
                 L = diag(1,constants$P),
-                identityMatrix = (diag(1,constants$P)),
+                identityMatrix = diag(1,constants$P),
                 df = constants$P )
   
-  #identityMatrix <- (diag(1,constants$P))
-  #df <- constants$P + 1
   modelCode <- nimbleCode({
     ## Likelihood components:
     for(i in 1:N) {
@@ -123,21 +121,21 @@ uppertri_mult_diag <- nimbleFunction(
       }
     }
     
-    ## Obtain correlated random effects
-    for(j in 1:J) {
-      ## Bernoulli for Spike and Slab
-      for(p in 1:P){
-        ss[p,j] ~ dbern(bval[p,1])
-      }
-      
-      ## normal scaling for random effects
-      for(k in 1:P){
-        z[k,j] ~ dnorm(0, sd = 1)
-      }
-      
-      ## Cholesky decomposition of covariance matrix
-      u[j,1:P] <- chol_Sigma[1:P, 1:P] %*% z[1:P,j] * ss[1:P,j]
-    }
+    # ## Obtain correlated random effects
+    # for(j in 1:J) {
+    #   ## Bernoulli for Spike and Slab
+    #   for(p in 1:P){
+    #     ss[p,j] ~ dbern(bval[p,1])
+    #   }
+    #   
+    #   ## normal scaling for random effects
+    #   for(k in 1:P){
+    #     z[k,j] ~ dnorm(0, sd = 1)
+    #   }
+    #   
+    #   ## Cholesky decomposition of covariance matrix
+    #   u[j,1:P] <- chol_Sigma[1:P, 1:P] %*% z[1:P,j] * ss[1:P,j]
+    # }
     
     ## Priors:
     ## Fixed effects: Location
@@ -150,14 +148,37 @@ uppertri_mult_diag <- nimbleFunction(
     }
     
     ## Random effects covariance matrix
-    R[1:P, 1:P] ~ dwish(identityMatrix[1:P, 1:P], df) ## Wishart prior with df degrees of freedom and R_prior scale matrix
+    R[1:P, 1:P] ~ dinvwishart(identityMatrix[1:P, 1:P], df) ## Wishart prior with df degrees of freedom and R_prior scale matrix
     
     ## Cholesky decomposition of R
-    chol_Sigma[1:P, 1:P] <- chol(R[1:P, 1:P])
+    #chol_Sigma[1:P, 1:P] <- t(chol(R[1:P, 1:P]))
     
-    ## Random effects standard deviations (optional, can extract from Sigma if needed)
+    ## Random effects standard deviations
     for(p in 1:P){
       sigma_rand[p] <- sqrt(R[p, p])
+    }
+    
+    ## Compute the correlation matrix Omega from Sigma:
+    for(i in 1:P) {
+      for(j in 1:P) {
+        Omega[i, j] <- R[i, j] / (sigma_rand[i] * sigma_rand[j])
+      }
+    }
+    
+    ## Cholesky decomposition of Omega (correlation matrix):
+    chol_Omega[1:P, 1:P] <- t(chol(Omega[1:P, 1:P]))  
+    
+    ## Compute random effects using the Cholesky factor of Omega:
+    for(j in 1:J) {
+      
+      for(p in 1:P){
+        ss[p,j] ~ dbern(bval[p,1])
+      }
+      
+      for( k in 1:P ){
+        z[k,j] ~ dnorm(0, sd = 1)  # Standard normal random effects
+      }
+      u[j, 1:P] <- chol_Omega[1:P, 1:P] %*% z[1:P, j] * ss[1:P,j] # Random effects using Cholesky of Omega
     }
   })
   
@@ -188,6 +209,7 @@ results <- future_lapply(1:workers, function(x) run_MCMC_allcode(seed = x,
 out <- list()
 mcmc_chains <- lapply(results, as.mcmc)
 combined_chains <- mcmc.list(mcmc_chains)
+head(combined_chains[[1]]$samples[,2])
 
 ## Compute logLik:
 ## Check that Y,  mu and tau are of same length, in case grep picks up other variables
@@ -230,6 +252,14 @@ for (i in seq_along(x)) {
 }
 ## Use the monitor function from rstan to obtain Rhat (coda's gelman.rhat does not work reliably)
 print("Compiling results...")
+
+colnames(x[[1]])[8]
+
+covR=samples_array[,1,5]
+sd1R=sd(samples_array[,1,6])
+sd2R=sd(samples_array[,1,8])
+median(covR/(sd1R*sd2R))
+
 monitor_results <- rstan::monitor(samples_array, print = FALSE)
 ## Extract and print R-hat values
 out$rhat_values <- monitor_results[, "Rhat"]
@@ -255,3 +285,4 @@ class(out) <- c("ivd", "list")
 # Summary table -----------------------------------------------------------
 
 summary(out)
+
