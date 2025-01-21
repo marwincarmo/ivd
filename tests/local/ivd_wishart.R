@@ -3,24 +3,25 @@ devtools::load_all( )
 library(mlmRev)
 library(nimble)
 library(coda)
+library(data.table)
 
-school_dat = mlmRev::Hsb82
+## Calculate school-level SES
+school_ses <- saeb[, .(school_ses = mean(student_ses, na.rm = TRUE)), by = school_id]
 
-## Ensure that school id is a continuous vector
-school_dat$schoolid <- NA
-k <- 0
-for( i in unique(school_dat$school) ) {
-  k <- k+1
-  school_dat[school_dat$school == i, "schoolid"] <- k
-}
+## Join the school_ses back to the original dataset
+saeb <- saeb[school_ses, on = "school_id"]
 
-school_dat$mAch_s <- scale(school_dat$mAch,  center = TRUE,  scale = TRUE )
+## Define student level SES as deviation from the school SES
+saeb$student_ses <- saeb$student_ses - saeb$school_ses
 
-location_formula = mAch_s ~  1 + ( 1 | schoolid)
-scale_formula =  ~ 1  + (1 | schoolid)
-data = school_dat
-niter = 1000
-nburnin = 2000
+## Grand mean center school ses
+saeb$school_ses <- c(scale(saeb$school_ses, scale = FALSE))
+
+location_formula = math_proficiency ~ student_ses * school_ses + (1|school_id)
+scale_formula =  ~ student_ses * school_ses + (1|school_id)
+data = saeb
+niter = 2000
+nburnin = 8000
 WAIC = TRUE
 workers = 4
 
@@ -43,7 +44,7 @@ run_MCMC_allcode <- function(seed, data, constants, code, niter, nburnin, useWAI
   if (useWAIC) {
     config$enableWAIC <- useWAIC
   }
-  config$monitors <- c("beta", "zeta", "ss", "sigma_rand", "u", "R",  "Omega", "chol_Omega")
+  config$monitors <- c("beta", "zeta", "ss", "sigma_rand", "u", "R")
   config$addMonitors(c("mu", "tau"))
   
   ## build mcmc object
@@ -84,11 +85,12 @@ uppertri_mult_diag <- nimbleFunction(
                     Sr = ncol(data$Z_scale),  ## number of random scale effects                    
                     P = ncol(data$Z) + ncol(data$Z_scale),  ## number of random effects
                     groupid = group_id,
+                    chol_omega = chol(diag(ncol(data$Z) + ncol(data$Z_scale))),
                     bval = matrix(c(rep(1,  ncol(data$Z)), rep(0.5, ncol(data$Z_scale)) ), ncol = 1)) ## Prior probability for dbern 
   ## Nimble inits
   inits <- list(beta = rnorm(constants$K, 5, 10), ## TODO: Check inits
                 zeta =  rnorm(constants$S, 1, 3),
-                sigma_rand = rlnorm(constants$P, 0, 1),
+                sigma_rand = diag(rlnorm(constants$P, 0, 1)),
                 L = diag(1,constants$P),
                 identityMatrix = diag(1,constants$P),
                 df = constants$P )
@@ -96,9 +98,7 @@ uppertri_mult_diag <- nimbleFunction(
   modelCode <- nimbleCode({
     ## Likelihood components:
     for(i in 1:N) {
-      Y[i] ~ dnorm(mu[i], sd = tau[i]) ## explicitly ask for SD not precision
-      
-      ## Location
+      Y[i] ~ dnorm(mu[i], sd = tau[i])
       if(K>1) {
         if(Kr>1) {
           mu[i] <- sum(beta[1:K] * X[i, 1:K]) + sum( u[groupid[i], 1:Kr] * Z[i, 1:Kr] )
@@ -106,13 +106,12 @@ uppertri_mult_diag <- nimbleFunction(
           mu[i] <- sum(beta[1:K] * X[i, 1:K]) + u[groupid[i], 1]
         }
       } else {
-        mu[i] <- beta[1] + u[groupid[i], 1] * Z[i, 1]
+        mu[i] <- beta[1] + u[groupid[i], 1] * Z[i, 1]        
       }
       
-      ## Scale
       if(S>1) { 
         if(Sr>1) {
-          tau[i] <- exp( sum(zeta[1:S] * X_scale[i, 1:S]) + sum(u[groupid[i], (Kr+1):(Kr+Sr)] * Z_scale[i, 1:Sr]) )
+          tau[i] <- exp( sum(zeta[1:S] * X_scale[i, 1:S]) + sum(u[groupid[i], (Kr+1):(Kr+Sr)] * Z_scale[i, 1:Sr]) )  
         } else {
           tau[i] <- exp( sum(zeta[1:S] * X_scale[i, 1:S]) + u[groupid[i], (Kr+1)] ) 
         }
@@ -121,65 +120,38 @@ uppertri_mult_diag <- nimbleFunction(
       }
     }
     
-    # ## Obtain correlated random effects
-    # for(j in 1:J) {
-    #   ## Bernoulli for Spike and Slab
-    #   for(p in 1:P){
-    #     ss[p,j] ~ dbern(bval[p,1])
-    #   }
-    #   
-    #   ## normal scaling for random effects
-    #   for(k in 1:P){
-    #     z[k,j] ~ dnorm(0, sd = 1)
-    #   }
-    #   
-    #   ## Cholesky decomposition of covariance matrix
-    #   u[j,1:P] <- chol_Sigma[1:P, 1:P] %*% z[1:P,j] * ss[1:P,j]
-    # }
+    for(j in 1:J) {
+      ## Bernoulli for Spike and Slab
+      for(p in 1:P){
+        ss[p,j] ~ dbern(bval[p,1]) ## bval is a constant
+      }    
+      ## normal scaling for random effects
+      for( k in 1:P ){
+        z[k,j] ~ dnorm(0, sd = 1)
+      }
+      ## Transpose L to get lower cholesky
+      ## then compute the hadamard (element-wise) product with the ss vector
+      u[j,1:P] <- t( sigma_rand[1:P, 1:P] %*% L[1:P, 1:P]  %*% z[1:P,j] * ss[1:P,j] )
+    }
     
-    ## Priors:
-    ## Fixed effects: Location
     for (k in 1:K) {
       beta[k] ~ dnorm(0, sd = 1000)
     }
-    ## Fixed effects: Scale
     for (s in 1:S) {
       zeta[s] ~ dnorm(0, sd = 1000)
-    }
-    
-    ## Random effects covariance matrix
-    R[1:P, 1:P] ~ dinvwishart(identityMatrix[1:P, 1:P], df) ## Wishart prior with df degrees of freedom and R_prior scale matrix
-    
-    ## Cholesky decomposition of R
-    #chol_Sigma[1:P, 1:P] <- t(chol(R[1:P, 1:P]))
-    
-    ## Random effects standard deviations
+    }  
     for(p in 1:P){
-      sigma_rand[p] <- sqrt(R[p, p])
+      sigma_rand[p,p] ~ T(dt(0, 1, 3), 0, )
     }
     
-    ## Compute the correlation matrix Omega from Sigma:
-    for(i in 1:P) {
-      for(j in 1:P) {
-        Omega[i, j] <- R[i, j] / (sigma_rand[i] * sigma_rand[j])
-      }
-    }
+    # Make sure to specify scale_param
+    L[1:P, 1:P] ~ dinvwish(cholesky = chol_omega[1:P, 1:P],
+                           df = P +1,
+                           scale_param = 1)
     
-    ## Cholesky decomposition of Omega (correlation matrix):
-    chol_Omega[1:P, 1:P] <- t(chol(Omega[1:P, 1:P]))  
+    R[1:P, 1:P] <- t(L[1:P, 1:P]) %*% L[1:P, 1:P]
+    ## Lower cholesky of random effects correlation 
     
-    ## Compute random effects using the Cholesky factor of Omega:
-    for(j in 1:J) {
-      
-      for(p in 1:P){
-        ss[p,j] ~ dbern(bval[p,1])
-      }
-      
-      for( k in 1:P ){
-        z[k,j] ~ dnorm(0, sd = 1)  # Standard normal random effects
-      }
-      u[j, 1:P] <- chol_Omega[1:P, 1:P] %*% z[1:P, j] * ss[1:P,j] # Random effects using Cholesky of Omega
-    }
   })
   
 future::plan(multisession, workers = workers)
