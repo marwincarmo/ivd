@@ -20,7 +20,7 @@ location_formula = math_proficiency ~ student_ses * school_ses + (1|school_id)
 scale_formula =  ~ student_ses * school_ses + (1|school_id)
 data = saeb
 niter = 2000
-nburnin = 8000
+nburnin = 2000
 WAIC = TRUE
 workers = 4
 
@@ -139,19 +139,19 @@ modelCode <- nimbleCode({
   }
   ## For correlations between random effects
   ## Uniform prior
-  # for(i in 1:(P-1)) {
-  #   for(j in (i+1):P) {
-  #     rho[i,j] ~ dunif(-1, 1)  # correlations between effects i and j
-  #   }
-  # }
-  # 
-  ## Transformed beta prior
   for(i in 1:(P-1)) {
     for(j in (i+1):P) {
-      beta_rho[i,j] ~ dbeta(2, 2)  # more mass in middle, can adjust parameters
-      rho[i,j] <- 2 * beta_rho[i,j] - 1  # transforms (0,1) to (-1,1)
+      rho[i,j] ~ dunif(-1, 1)  # correlations between effects i and j
     }
   }
+  # 
+  ## Transformed beta prior
+  # for(i in 1:(P-1)) {
+  #   for(j in (i+1):P) {
+  #     beta_rho[i,j] ~ dbeta(2, 2)  # more mass in middle, can adjust parameters
+  #     rho[i,j] <- 2 * beta_rho[i,j] - 1  # transforms (0,1) to (-1,1)
+  #   }
+  # }
   
   ## Construct L matrix based on number of random effects
   if(P == 2) {
@@ -344,7 +344,7 @@ n_eff <- round( n*m / ( 1+2*colSums(rho_t, na.rm = TRUE) ) )
 
 ## Extract and print R-hat values
 out$rhat_values <- Rhat  
-#if( any(out$rhat_values > 1.1) ) warning("Some R-hat values are greater than 1.10 -- increase warmup and/or sampling iterations." )
+if( any(out$rhat_values > 1.1) ) warning("Some R-hat values are greater than 1.10 -- increase warmup and/or sampling iterations." )
 
 ## Effective sample size
 out$n_eff <- n_eff
