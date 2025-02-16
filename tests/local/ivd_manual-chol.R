@@ -22,7 +22,7 @@ data = saeb
 niter = 2000
 nburnin = 2000
 WAIC = TRUE
-workers = 4
+workers = 2
 
 niter <- niter + nburnin
 dat <- prepare_data_for_nimble(data = data, location_formula = location_formula, scale_formula = scale_formula)
@@ -141,7 +141,9 @@ modelCode <- nimbleCode({
   ## Uniform prior
   for(i in 1:(P-1)) {
     for(j in (i+1):P) {
-      rho[i,j] ~ dunif(-1, 1)  # correlations between effects i and j
+      zscore ~ dnorm(0, sd = 1)
+      rho[i,j] <- tanh(zscore)  # correlations between effects i and j
+      
     }
   }
   # 
