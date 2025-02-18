@@ -16,13 +16,13 @@ saeb$student_ses <- saeb$student_ses - saeb$school_ses
 ## Grand mean center school ses
 saeb$school_ses <- c(scale(saeb$school_ses, scale = FALSE))
 
-location_formula = math_proficiency ~ student_ses * school_ses + (1|school_id)
-scale_formula =  ~ student_ses * school_ses + (1|school_id)
+location_formula = math_proficiency ~ 1 + (1|school_id)
+scale_formula =  ~ 1 + (1|school_id)
 data = saeb
 niter = 2000
-nburnin = 2000
+nburnin = 8000
 WAIC = TRUE
-workers = 2
+workers = 6
 
 niter <- niter + nburnin
 dat <- prepare_data_for_nimble(data = data, location_formula = location_formula, scale_formula = scale_formula)
@@ -143,7 +143,7 @@ modelCode <- nimbleCode({
     for(j in (i+1):P) {
       zscore ~ dnorm(0, sd = 1)
       rho[i,j] <- tanh(zscore)  # correlations between effects i and j
-      
+
     }
   }
   # 
@@ -185,7 +185,7 @@ modelCode <- nimbleCode({
     L[3,3] <- sqrt(1 - rho[1,3]^2 - ((rho[2,3] - rho[1,2]*rho[1,3])^2)/(1 - rho[1,2]^2))
     L[4,3] <- (rho[3,4] - rho[1,3]*rho[1,4] - (rho[2,3] - rho[1,2]*rho[1,3])*(rho[2,4] - rho[1,2]*rho[1,4])/(1 - rho[1,2]^2))/
       sqrt(1 - rho[1,3]^2 - ((rho[2,3] - rho[1,2]*rho[1,3])^2)/(1 - rho[1,2]^2))
-    L[4,4] <- sqrt(1 - rho[1,4]^2 - ((rho[2,4] - rho[1,2]*rho[1,4])^2)/(1 - rho[1,2]^2) - 
+    L[4,4] <- sqrt(1 - rho[1,4]^2 - ((rho[2,4] - rho[1,2]*rho[1,4])^2)/(1 - rho[1,2]^2) -
                      (rho[3,4] - rho[1,3]*rho[1,4] - (rho[2,3] - rho[1,2]*rho[1,3])*(rho[2,4] - rho[1,2]*rho[1,4])/(1 - rho[1,2]^2))^2/
                      (1 - rho[1,3]^2 - ((rho[2,3] - rho[1,2]*rho[1,3])^2)/(1 - rho[1,2]^2)))
     L[1,2] <- 0
@@ -196,6 +196,8 @@ modelCode <- nimbleCode({
     L[3,4] <- 0
   }
   
+  ## Lower cholesky of random effects correlation 
+  #L[1:P, 1:P] ~ dlkj_corr_cholesky(eta = 1, p = P)
   R[1:P, 1:P] <- t(L[1:P, 1:P]) %*% L[1:P, 1:P]
 })
 
