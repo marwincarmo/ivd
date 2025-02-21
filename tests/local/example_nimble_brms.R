@@ -67,20 +67,21 @@ model_code <- nimbleCode({
   }
   
   ## Upper cholesky of random effects correlation 
-  U[1:P, 1:P] ~ dlkj_corr_cholesky(eta = 1, p = P)
-  L[1:P, 1:P] <- t(U[1:P, 1:P])
+  #U[1:P, 1:P] ~ dlkj_corr_cholesky(eta = 1, p = P)
+  #L[1:P, 1:P] <- t(U[1:P, 1:P])
   
   ## Construct L 'manually'
-  # L[1,1] <- 1
-  # L[2,1] <- rho
-  # L[2,2] <- sqrt(1 - rho^2)
-  # L[1,2] <- 0
+  L[1,1] <- 1
+  L[2,1] <- rho
+  L[2,2] <- sqrt(1 - rho^2)
+  L[1,2] <- 0
   
+
   ## Construct U 'manually'
-  # U[1,1] <- 1
-  # U[2,1] <- 0
-  # U[2,2] <- sqrt(1 - rho^2)
-  # U[1,2] <- rho
+  U[1,1] <- 1
+  U[2,1] <- 0
+  U[2,2] <- sqrt(1 - rho^2)
+  U[1,2] <- rho
   ##
   #R[1:P, 1:P] <- t(U[1:P, 1:P] ) %*% U[1:P, 1:P] # using upper cholesky
   R[1:P, 1:P] <- L[1:P, 1:P] %*% t(L[1:P, 1:P] ) # using lower cholesky
@@ -99,8 +100,9 @@ nimble_data <- list(y = school_dat$mAch,
 
 inits <- list(loc_int = rnorm(1, 5, 10), ## TODO: Check inits
                   scl_int =  rnorm(1, 1, 3),
-                  sigma_rand = diag(rlnorm(constants$P, 0, 1)),
-                  U = diag(1,constants$P) )
+                  sigma_rand = diag(rlnorm(constants$P, 0, 1))
+                , L = diag(1,constants$P) 
+              )
 
 school_model <- nimbleModel(code = model_code, name = "school_model", constants = constants,
                     data = nimble_data, inits = inits)
@@ -109,7 +111,8 @@ school_model <- nimbleModel(code = model_code, name = "school_model", constants 
 mcmc.out <- nimbleMCMC(code = model_code, constants = constants,
                        data = nimble_data, inits = inits,
                        nchains = 4, niter = 10000, nburnin = 8000,
-                       monitors = c("loc_int", "scl_int", "R", "sigma_rand", "U"),
+                       monitors = c("loc_int", "scl_int", "R", "sigma_rand", "L"#, "U"
+                                    ),
                        summary = TRUE, WAIC = TRUE)
 
 ## Compute Rhats and n_eff:
