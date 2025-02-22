@@ -13,26 +13,49 @@ for( i in unique(school_dat$school) ) {
   school_dat[school_dat$school == i, "schoolid"] <- k
 }
 
-# brms model --------------------------------------------------------------
-# 
-mod0 <- brm( bf( mAch ~ 1 + ( 1|c|schoolid),
-                sigma ~ 1 + ( 1 |c| schoolid ) ),
-            cores = 4, iter = 10000, warmup = 8000,
-            data = school_dat)
-summary(mod0)
-
 
 # nimble model --------------------------------------------------------
 
-school_dat = mlmRev::Hsb82
+invvec_to_corr <- nimbleFunction(
+  run = function(V = double(1), P = integer()) {
+    returnType(double(2))
+    
+    # Create a lower triangular matrix z with diagonal 0
+    z <- matrix(0, nrow = P, ncol = P)
+    index <- 1
+    for (j in 1:(P-1)) {
+      for (i in (j+1):P) {
+        z[i, j] <- V[index]  # Fill the lower triangular part with correlations
+        index <- index + 1
+      }
+    }
+    
+    # Construct the Cholesky factor L
+    L <- matrix(0, nrow = P, ncol = P)
+    
+    for (i in 1:P) {
+      for (j in 1:P) {
+        if (i < j) {
+          L[i, j] <- 0.0
+        }
+        if (i == j) {
+          if (i == 1) {
+            L[i, j] <- 1.0
+          }
+          if (i > 1) {  # Diagonal beyond [1,1]
+            L[i, j] <- sqrt(1 - sum(L[i, 1:j]^2))
+          }
+        }
+        if (i > j) {
+          L[i, j] <- z[i, j] * sqrt(1 - sum(L[i, 1:j]^2))
+        }
+      }
+    }
+    
+    return(L)
+  }
+)
 
-## Ensure that school id is a continuous vector
-school_dat$schoolid <- NA
-k <- 0
-for( i in unique(school_dat$school) ) {
-  k <- k+1
-  school_dat[school_dat$school == i, "schoolid"] <- k
-}
 
 model_code <- nimbleCode({ 
   
@@ -50,13 +73,14 @@ model_code <- nimbleCode({
     }
     ## Transpose U to get lower cholesky
     ## then compute the hadamard (element-wise) product with the ss vector
-    u[j,1:P] <- t( sigma_rand[1:P, 1:P] %*% U[1:P, 1:P]  %*% z[1:P,j])
+    u[j,1:P] <- t( sigma_rand[1:P, 1:P] %*% L[1:P, 1:P]  %*% z[1:P,j])
   }
   
   # Ranef cor prior
-  zscore ~ dnorm(0, sd = 1)
-  rho <- tanh(zscore)
-  
+  for(p in 1:P){
+    zscore ~  dnorm(0, sd = 1)
+    rho[1:p] <- tanh(zscore)
+    }
   # Fixed intercept location
   loc_int ~ dnorm(0, sd = 10)
   # Fixed intercept scale
@@ -66,22 +90,24 @@ model_code <- nimbleCode({
     sigma_rand[p,p] ~ T(dt(0, 1, 3), 0, )
   }
   
+  L[1:P, 1:P] <- invvec_to_corr(V = rho[1:P], P = P)
+  
   ## Upper cholesky of random effects correlation 
   #U[1:P, 1:P] ~ dlkj_corr_cholesky(eta = 1, p = P)
   #L[1:P, 1:P] <- t(U[1:P, 1:P])
   
   ## Construct L 'manually'
-  L[1,1] <- 1
-  L[2,1] <- rho
-  L[2,2] <- sqrt(1 - rho^2)
-  L[1,2] <- 0
+  # L[1,1] <- 1
+  # L[2,1] <- rho
+  # L[2,2] <- sqrt(1 - rho^2)
+  # L[1,2] <- 0
   
 
   ## Construct U 'manually'
-  U[1,1] <- 1
-  U[2,1] <- 0
-  U[2,2] <- sqrt(1 - rho^2)
-  U[1,2] <- rho
+  # U[1,1] <- 1
+  # U[2,1] <- 0
+  # U[2,2] <- sqrt(1 - rho^2)
+  # U[1,2] <- rho
   ##
   #R[1:P, 1:P] <- t(U[1:P, 1:P] ) %*% U[1:P, 1:P] # using upper cholesky
   R[1:P, 1:P] <- L[1:P, 1:P] %*% t(L[1:P, 1:P] ) # using lower cholesky
@@ -110,7 +136,7 @@ school_model <- nimbleModel(code = model_code, name = "school_model", constants 
 
 mcmc.out <- nimbleMCMC(code = model_code, constants = constants,
                        data = nimble_data, inits = inits,
-                       nchains = 4, niter = 10000, nburnin = 8000,
+                       nchains = 4, niter = 6000, nburnin = 4000,
                        monitors = c("loc_int", "scl_int", "R", "sigma_rand", "L"#, "U"
                                     ),
                        summary = TRUE, WAIC = TRUE)
@@ -137,6 +163,14 @@ summary_table <- data.frame(
 )
 
 round(summary_table,2)
+
+# brms model --------------------------------------------------------------
+# 
+mod0 <- brm( bf( mAch ~ 1 + ( 1|c|schoolid),
+                 sigma ~ 1 + ( 1 |c| schoolid ) ),
+             cores = 4, iter = 10000, warmup = 8000,
+             data = school_dat)
+summary(mod0)
 
 # Reconstructing R from U -------------------------------------
 # > round(summary_table,2)
