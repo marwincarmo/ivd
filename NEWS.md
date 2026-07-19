@@ -2,6 +2,11 @@
 
 ## New features
 
+* New `pip_fdr()`: a Bayesian false-discovery-rate decision rule for
+  selecting deviant clusters (Newton et al., 2004). Instead of a fixed PIP
+  cutoff, it selects the largest cluster set whose expected FDR stays below
+  a target level and reports the implied, data-adaptive PIP threshold
+  (usable as `pip_level` in `plot()`).
 * Ecosystem bridges: `as.mcmc.list()` (coda) and `as_draws()` (posterior)
   convert a fit to standard formats with the human-readable parameter labels
   used by `summary()`, opening up bayesplot/tidybayes/posterior tooling
