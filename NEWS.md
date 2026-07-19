@@ -2,6 +2,12 @@
 
 ## New features
 
+* New `pp_check()` method: posterior predictive check of the within-cluster
+  SDs -- the quantity the spike-and-slab makes claims about. Default view
+  compares each cluster's observed SD with its predictive interval
+  (outliers highlighted and labelled); `type = "density"` overlays the
+  observed cluster-SD density on replicated ones. Systematic misfit
+  suggests the normal likelihood is inadequate (e.g. heavy tails).
 * New `priors` argument in `ivd()`: the prior hyperparameters -- location
   intercept and coefficients (normal), scale coefficients (normal),
   random-effect SDs (half-t df/scale), and the LKJ shape -- can now be set
