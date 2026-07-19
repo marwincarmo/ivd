@@ -104,18 +104,27 @@ test_that("ivd sets up and runs with correct defaults and inputs", {
     ## n_eff = "local" (the default) on short chains is a regression test for
     ## the Geyer-truncation crash (min() over an empty set -> Inf -> `1:Inf`);
     ## .geyer_truncate() now falls back to the last available lag instead.
+    ## The non-default `priors` also exercises the hyperparameter pass-through
+    ## into the NIMBLE constants (families are unchanged, so this is cheap).
     testoutput <- suppressWarnings({
         ivd(
             location_formula = Y ~ 1 + (1 | grouping),
             scale_formula = ~ 1 + (1 | grouping),
             data = data.frame(Y = rnorm(100), grouping = rep(1:10, each = 10)),
-            niter = 100, nburnin = 50, WAIC = TRUE, workers = 2, n_eff = "local"
+            niter = 100, nburnin = 50, WAIC = TRUE, workers = 2, n_eff = "local",
+            priors = list(zeta = c(sd = 2), lkj_eta = 2)
         )
     })
     expect_s3_class(testoutput, "ivd")
     expect_equal(length(testoutput$samples), 2) # Assuming workers = 2
     expect_equal(testoutput$workers, 2)
     expect_true(any(is.finite(testoutput$n_eff)))
+
+    ## resolved priors are stored on the fit and reached the model constants
+    expect_equal(testoutput$priors$zeta, c(mean = 0, sd = 2))
+    expect_equal(testoutput$priors$lkj_eta, 2)
+    expect_equal(testoutput$nimble_constants$zeta_sd, 2)
+    expect_equal(testoutput$nimble_constants$lkj_eta, 2)
 })
 
 test_that("ivd monitors neither mu nor tau, and omits logLik, by default (memory)", {

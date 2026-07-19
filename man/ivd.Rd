@@ -16,6 +16,7 @@ ivd(
   workers = 4,
   n_eff = "local",
   ss_prior_p = 0.5,
+  priors = list(),
   thin = 1,
   return_logLik = FALSE,
   seed = NULL,
@@ -41,6 +42,27 @@ ivd(
 \item{n_eff}{Use stan::monitor function or built local: 'stan' vs. 'local'}
 
 \item{ss_prior_p}{Prior inclusion probability. Defaults to '.5'.}
+
+\item{priors}{Optional named list overriding the prior hyperparameters.
+The distribution families are fixed (normal for fixed effects, half-t
+for the random-effect SDs, LKJ for their correlation); any subset of
+their hyperparameters can be changed:
+\itemize{
+\item \code{beta_intercept}: \code{c(mean = , sd = )} for the location
+intercept. Default: empirical, \code{mean(Y)} and \code{3*sd(Y)}.
+\item \code{beta}: \code{c(mean = 0, sd = 1000)} for the remaining
+location coefficients.
+\item \code{zeta}: \code{c(mean = 0, sd = 3)} for the scale
+coefficients (log-SD scale).
+\item \code{sigma_rand}: \code{c(df = 3, scale = 1)} for the half-t on
+the random-effect SDs.
+\item \code{lkj_eta}: \code{1}, the LKJ shape for the random-effect
+correlation matrix (larger favours weaker correlations).
+}
+Partial specifications are filled with the defaults, e.g.
+\code{priors = list(zeta = c(sd = 1))} only tightens the scale
+coefficients. The prior inclusion probability of the spike-and-slab has
+its own argument, \code{ss_prior_p}.}
 
 \item{thin}{Thinning interval for stored posterior draws. Defaults to 1
 (keep every iteration). Larger values cut stored-sample RAM linearly.}
@@ -103,6 +125,8 @@ outcome plot can reconstruct the posterior mean of \code{mu}.
 index \code{j} back to the user's original grouping IDs.
 \item \code{location_formula}, \code{scale_formula}: The model formulas.
 \item \code{ss_prior_p}: The prior inclusion probability used in the fit.
+\item \code{priors}: The fully resolved prior hyperparameters
+(defaults plus any user overrides).
 
 \item \code{workers}: Number of parallel chains used.
 

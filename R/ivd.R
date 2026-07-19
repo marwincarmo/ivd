@@ -160,6 +160,26 @@ uppertri_mult_diag <- nimbleFunction(
 #' @param workers Number of parallel R processes -- doubles as 'chains' argument
 #' @param n_eff Use stan::monitor function or built local: 'stan' vs. 'local'
 #' @param ss_prior_p Prior inclusion probability. Defaults to '.5'.
+#' @param priors Optional named list overriding the prior hyperparameters.
+#'   The distribution families are fixed (normal for fixed effects, half-t
+#'   for the random-effect SDs, LKJ for their correlation); any subset of
+#'   their hyperparameters can be changed:
+#'   \itemize{
+#'     \item \code{beta_intercept}: \code{c(mean = , sd = )} for the location
+#'           intercept. Default: empirical, \code{mean(Y)} and \code{3*sd(Y)}.
+#'     \item \code{beta}: \code{c(mean = 0, sd = 1000)} for the remaining
+#'           location coefficients.
+#'     \item \code{zeta}: \code{c(mean = 0, sd = 3)} for the scale
+#'           coefficients (log-SD scale).
+#'     \item \code{sigma_rand}: \code{c(df = 3, scale = 1)} for the half-t on
+#'           the random-effect SDs.
+#'     \item \code{lkj_eta}: \code{1}, the LKJ shape for the random-effect
+#'           correlation matrix (larger favours weaker correlations).
+#'   }
+#'   Partial specifications are filled with the defaults, e.g.
+#'   \code{priors = list(zeta = c(sd = 1))} only tightens the scale
+#'   coefficients. The prior inclusion probability of the spike-and-slab has
+#'   its own argument, \code{ss_prior_p}.
 #' @param thin Thinning interval for stored posterior draws. Defaults to 1
 #'   (keep every iteration). Larger values cut stored-sample RAM linearly.
 #' @param return_logLik Store the pointwise log-likelihood array
@@ -216,6 +236,8 @@ uppertri_mult_diag <- nimbleFunction(
 #'         index \code{j} back to the user's original grouping IDs.
 #'   \item \code{location_formula}, \code{scale_formula}: The model formulas.
 #'   \item \code{ss_prior_p}: The prior inclusion probability used in the fit.
+#'   \item \code{priors}: The fully resolved prior hyperparameters
+#'         (defaults plus any user overrides).
 #'
 #'   \item \code{workers}: Number of parallel chains used.
 #'
@@ -251,7 +273,7 @@ uppertri_mult_diag <- nimbleFunction(
 ##' codaplot(out, parameters =  "Intc")
 ##' codaplot(out, parameters =  "R[scl_Intc, Intc]")
 ##' }
-ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WAIC = TRUE, workers = 4, n_eff = "local", ss_prior_p = 0.5, thin = 1, return_logLik = FALSE, seed = NULL, progress = interactive(), ...) {
+ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WAIC = TRUE, workers = 4, n_eff = "local", ss_prior_p = 0.5, priors = list(), thin = 1, return_logLik = FALSE, seed = NULL, progress = interactive(), ...) {
   if(is.null(nburnin)) {
     nburnin <- niter
   }
@@ -265,7 +287,12 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   ## Obtain estimates for empirical intercept prior:
   mean_pred <- mean(data$Y, na.rm = TRUE)
   sd_pred <- sd(data$Y, na.rm = TRUE)
-  
+
+  ## Resolve the prior specification (defaults <- user overrides). Only the
+  ## hyperparameters are tunable; they enter the model as constants so the
+  ## nimbleCode below never changes shape.
+  prior_spec <- .ivd_priors(priors, mean_pred = mean_pred, sd_pred = sd_pred)
+
   ## Nimble part:
   ## Nimble constants
   constants <- list(
@@ -277,8 +304,16 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
       Sr = ncol(data$Z_scale), ## number of random scale effects
       P = ncol(data$Z) + ncol(data$Z_scale), ## number of random effects
       groupid = group_id,
-      mean_pred =  mean_pred, ## empirical estimate from sample for location
-      sd_pred = sd_pred, ## empirical estimate from sample for location
+      ## Prior hyperparameters (see .ivd_priors for the defaults)
+      beta_int_mean = prior_spec$beta_intercept[["mean"]],
+      beta_int_sd = prior_spec$beta_intercept[["sd"]],
+      beta_mean = prior_spec$beta[["mean"]],
+      beta_sd = prior_spec$beta[["sd"]],
+      zeta_mean = prior_spec$zeta[["mean"]],
+      zeta_sd = prior_spec$zeta[["sd"]],
+      sigma_df = prior_spec$sigma_rand[["df"]],
+      sigma_scale = prior_spec$sigma_rand[["scale"]],
+      lkj_eta = prior_spec$lkj_eta,
       bval = matrix(c(rep(1, ncol(data$Z)), rep(ss_prior_p, ncol(data$Z_scale))), ncol = 1)## Prior probability for dbern
   )
   ## Optional reproducibility: seed the random inits and derive a distinct,
@@ -339,26 +374,26 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
           ##u[j,1:P] <- t( sigma_rand[1:P, 1:P] %*% L[1:P, 1:P]  %*% z[1:P,j] * ss[1:P,j] )
           u[j, 1:P] <- t( t(U[1:P, 1:P]) %*% z[1:P, j] ) * ss[1:P, j]
       }
-      ## Priors:
+      ## Priors (hyperparameters are constants resolved by .ivd_priors):
       ## Fixed effects: Location
-      beta[1] ~ dnorm(mean_pred, sd = 3 * sd_pred)
+      beta[1] ~ dnorm(beta_int_mean, sd = beta_int_sd)
       if (K > 1) {
           for (k in 2:K) {
-              beta[k] ~ dnorm(0, sd = 1000) ## TODO might want to add empirical sd
+              beta[k] ~ dnorm(beta_mean, sd = beta_sd)
           }
       }
       ## Fixed effects: Scale
       for (s in 1:S) {
-          zeta[s] ~ dnorm(0, sd = 3) ## TODO might want to add empirical sd
+          zeta[s] ~ dnorm(zeta_mean, sd = zeta_sd)
       }
-      ## Random effects SD
+      ## Random effects SD: half-t
       for(p in 1:P){
           ## reconstruct sigma_rand as vector
-          sigma_rand[p] ~ T(dt(0, 1, 3), 0, )
+          sigma_rand[p] ~ T(dt(mu = 0, sigma = sigma_scale, df = sigma_df), 0, )
       }
       ## Correlations between random effects
       ## Lower cholesky of random effects correlation
-      Ustar[1:P, 1:P] ~ dlkj_corr_cholesky(eta = 1, p = P)
+      Ustar[1:P, 1:P] ~ dlkj_corr_cholesky(eta = lkj_eta, p = P)
       U[1:P, 1:P] <- uppertri_mult_diag(Ustar[1:P, 1:P], sigma_rand[1:P])
       ##
       ##R[1:P, 1:P] <- L[1:P, 1:P]  %*% t(L[1:P, 1:P])
@@ -634,6 +669,8 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   out$scale_formula <- scale_formula
   ## Prior inclusion probability, kept for pip_sensitivity().
   out$ss_prior_p <- ss_prior_p
+  ## Fully resolved prior hyperparameters (defaults + user overrides).
+  out$priors <- prior_spec
   out$workers <- workers
   
   class(out) <- c("ivd", "list")

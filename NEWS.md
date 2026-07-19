@@ -2,6 +2,12 @@
 
 ## New features
 
+* New `priors` argument in `ivd()`: the prior hyperparameters -- location
+  intercept and coefficients (normal), scale coefficients (normal),
+  random-effect SDs (half-t df/scale), and the LKJ shape -- can now be set
+  by the user, e.g. `priors = list(zeta = c(sd = 1), lkj_eta = 2)`. Partial
+  specifications are filled with the (unchanged) defaults, and the resolved
+  specification is stored on the fit as `$priors`.
 * New `pip_diagnostics()`: Monte Carlo diagnostics for the PIPs, which
   binary-indicator Rhat does not cover. Reports per-chain PIPs, the Monte
   Carlo standard error of each pooled PIP, and flags clusters whose

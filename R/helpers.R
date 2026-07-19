@@ -350,3 +350,87 @@ prepare_data_for_nimble <- function(data, location_formula, scale_formula) {
     return(filtered_chain)
   })
 }
+
+##' Resolve and validate the `priors` argument of [ivd()]
+##'
+##' Fills a partial user specification with the package defaults and
+##' validates it. Only the hyperparameters are tunable -- the families are
+##' fixed (normal for fixed effects, half-t for random-effect SDs, LKJ for
+##' the correlation): this keeps the NIMBLE model code static so that a
+##' user's `priors` can never inject model code.
+##' @title Resolve the prior specification for ivd()
+##' @param priors Named list with any of `beta_intercept`, `beta`, `zeta`
+##'   (each `c(mean = , sd = )`), `sigma_rand` (`c(df = , scale = )`), and
+##'   `lkj_eta` (single positive number). Partial specifications are filled
+##'   with the defaults.
+##' @param mean_pred,sd_pred Empirical mean and SD of the response, used for
+##'   the default location-intercept prior.
+##' @return Fully resolved named list of the same shape, with an
+##'   `empirical_intercept` attribute recording whether the intercept prior
+##'   kept its data-dependent default.
+##' @author Philippe Rast
+##' @keywords internal
+.ivd_priors <- function(priors, mean_pred, sd_pred) {
+  defaults <- list(
+    beta_intercept = c(mean = mean_pred, sd = 3 * sd_pred),
+    beta = c(mean = 0, sd = 1000),
+    zeta = c(mean = 0, sd = 3),
+    sigma_rand = c(df = 3, scale = 1),
+    lkj_eta = 1
+  )
+  if (is.null(priors)) priors <- list()
+  if (!is.list(priors)) {
+    stop("`priors` must be a named list; see ?ivd.", call. = FALSE)
+  }
+  if (length(priors) && (is.null(names(priors)) || any(!nzchar(names(priors))))) {
+    stop("All elements of `priors` must be named.", call. = FALSE)
+  }
+  unknown <- setdiff(names(priors), names(defaults))
+  if (length(unknown)) {
+    stop("Unknown prior component(s): ", paste(unknown, collapse = ", "),
+         ". Available: ", paste(names(defaults), collapse = ", "), ".",
+         call. = FALSE)
+  }
+
+  resolved <- defaults
+  for (nm in names(priors)) {
+    spec <- priors[[nm]]
+    if (nm == "lkj_eta") {
+      if (!is.numeric(spec) || length(spec) != 1 || is.na(spec)) {
+        stop("`priors$lkj_eta` must be a single number.", call. = FALSE)
+      }
+      resolved$lkj_eta <- as.numeric(spec)
+      next
+    }
+    if (!is.numeric(spec) || is.null(names(spec)) || any(!nzchar(names(spec)))) {
+      stop("`priors$", nm, "` must be a named numeric vector, e.g. c(",
+           paste(names(defaults[[nm]]), collapse = " = , "), " = ).",
+           call. = FALSE)
+    }
+    bad <- setdiff(names(spec), names(defaults[[nm]]))
+    if (length(bad)) {
+      stop("Unknown element(s) in `priors$", nm, "`: ",
+           paste(bad, collapse = ", "), ". Use ",
+           paste(names(defaults[[nm]]), collapse = ", "), ".", call. = FALSE)
+    }
+    resolved[[nm]][names(spec)] <- spec
+  }
+
+  if (anyNA(unlist(resolved))) {
+    stop("`priors` must not contain missing values.", call. = FALSE)
+  }
+  for (nm in c("beta_intercept", "beta", "zeta")) {
+    if (resolved[[nm]][["sd"]] <= 0) {
+      stop("`priors$", nm, "` needs sd > 0.", call. = FALSE)
+    }
+  }
+  if (resolved$sigma_rand[["df"]] <= 0 || resolved$sigma_rand[["scale"]] <= 0) {
+    stop("`priors$sigma_rand` needs df > 0 and scale > 0.", call. = FALSE)
+  }
+  if (resolved$lkj_eta <= 0) {
+    stop("`priors$lkj_eta` must be positive.", call. = FALSE)
+  }
+
+  attr(resolved, "empirical_intercept") <- !("beta_intercept" %in% names(priors))
+  resolved
+}
