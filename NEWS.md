@@ -2,6 +2,11 @@
 
 ## New features
 
+* New `pip_diagnostics()`: Monte Carlo diagnostics for the PIPs, which
+  binary-indicator Rhat does not cover. Reports per-chain PIPs, the Monte
+  Carlo standard error of each pooled PIP, and flags clusters whose
+  classification at `pip_level` differs between chains (i.e. PIPs that
+  should not be trusted without more iterations).
 * New `pip_fdr()`: a Bayesian false-discovery-rate decision rule for
   selecting deviant clusters (Newton et al., 2004). Instead of a fixed PIP
   cutoff, it selects the largest cluster set whose expected FDR stays below
