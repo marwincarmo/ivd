@@ -407,91 +407,10 @@ plot.ivd <- function(x, type = "pip", pip_level = .75, variable = NULL, label_po
 ##' @importFrom grDevices devAskNewPage
 ##' @export
 codaplot <- function(obj, parameters = NULL, type = 'traceplot', askNewPage = TRUE) {
-  ## TODO: Inherit variable names from summary object
-
-  ## Prepare reduced options of parameters to be plotted (i.e., only those
-  ## in the summary table)
-
-  ## Extract to mcmc object
-  extract_samples <- .extract_to_mcmc(obj)
-  Kr <- obj$nimble_constants$Kr
-  ## Extract relevant names with summary_table function
-  mat_transposed <- .summary_table(t(extract_samples[[1]]), Kr)
-
-  ## Exclude mu and tau indexes (absent unless return_logLik = TRUE / legacy).
-  ## Guard the empty case: `x[-integer(0), ]` selects ZERO rows, not all.
-  drop_idx <- c(grep('^mu\\[', rownames(mat_transposed)),
-                grep('^tau\\[', rownames(mat_transposed)))
-  mat_kept <- if (length(drop_idx)) mat_transposed[-drop_idx, , drop = FALSE] else mat_transposed
-
-  raw_internal_names <- rownames(mat_kept)
-  internal_names <- raw_internal_names
-
-  ## Location fixed effects
-  beta_index <- grep('^beta\\[', internal_names)
-  if(length(beta_index) > 0 && length(beta_index) == length(obj$X_location_names)) {
-    internal_names[beta_index] <- obj$X_location_names
-  }
-  ## Scale fixed effects
-  zeta_index <- grep('^zeta\\[', internal_names)
-  if(length(zeta_index) > 0 && length(zeta_index) == length(colnames(obj$X_scale))) {
-    internal_names[zeta_index] <- paste0("scl_", colnames(obj$X_scale))
-  }
-  ## Random effects SD (diagonal of sigma_rand)
-  sigma_rand_index <- grep('^sigma_rand\\[(\\d+)]', internal_names) # Only diagonal
-  sd_names <- c(obj$Z_location_names, paste0("scl_", colnames(obj$Z_scale)))
-  if(length(sigma_rand_index) > 0 && length(sigma_rand_index) == length(sd_names)) {
-    internal_names[sigma_rand_index] <- paste0("sd_", sd_names)
-  }
-
-  ## Rewrite correlation variable
-  ## number of random effects:
-  cols <- length(sigma_rand_index)
-  ## Place holder variable: R is indexed as vech
-  M <- matrix(1:cols^2, ncol = cols )
-  ## record positions
-  vech <- M[lower.tri(M)]
-  ## match variable names to position
-  corrvar <- expand.grid(sd_names, sd_names)[vech,]
-  R_index <-  grep('R\\[', internal_names)
-  if( nrow(corrvar) != length(R_index) )stop("Check R_index in summary.R" )
-  internal_names[R_index] <- paste0("R[",paste(corrvar[, 1], corrvar[, 2], sep = ", "), "]")
-
-
-  ## Link PIP to actual clustering units
-  ## find the positions of the scale random effects in the model.
-  ## Scale random effects occupy rows (Kr+1):(Kr+Sr) of u/ss -- offset by the
-  ## number of *location* random effects Kr (using Sr here only worked when
-  ## Kr == Sr).
-  scale_ranef <- colnames(obj$Z_scale)
-  scale_indexes <- seq_len(length(scale_ranef)) + obj$nimble_constants$Kr
-  ## build patterns and replacements
-  patterns <- paste0("\\[", scale_indexes, ",")
-  replacements <- paste0("[", scale_ranef, ",")
-  ## create a vector with the new rownames
-  new_rownames <- Reduce(function(x, pattern_replacement) {
-    gsub(pattern_replacement[1], pattern_replacement[2], x)
-  },
-  mapply(c, patterns, replacements, SIMPLIFY = FALSE),
-  init = internal_names)
-  ## assign back
-  internal_names <- new_rownames
-
-  pip_pos <- grep("ss", internal_names)
-  internal_names[pip_pos] <- sub("^ss", "pip", internal_names[pip_pos])
-
-  ## (Intercept) is annoying long. Change to Int.
-  Int_index <- grep("\\(Intercept\\)", internal_names)
-  internal_names[Int_index] <- gsub("\\(Intercept\\)",  "Intc", internal_names[Int_index])
-
-  ## Filter each chain in the list for the relevant parameters
-  extract_samples_filtered <- lapply(extract_samples, function(chain) {
-    chain_names <- colnames(chain)
-    matching_cols <- chain_names %in% raw_internal_names
-    filtered_chain <- chain[, matching_cols, drop = FALSE]
-    colnames(filtered_chain) <- internal_names
-    return(filtered_chain)
-  })
+  ## Restrict to the parameters shown by summary() and rename them to the
+  ## human-readable summary labels (shared with as.mcmc.list()/as_draws()).
+  extract_samples_filtered <- .renamed_mcmc_list(obj)
+  internal_names <- colnames(extract_samples_filtered[[1]])
 
   ## Check if 'type' corresponds to a valid coda plotting function
   ## Typically, these would be 'plot', 'acfplot', etc.

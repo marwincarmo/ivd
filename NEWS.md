@@ -2,6 +2,11 @@
 
 ## New features
 
+* Ecosystem bridges: `as.mcmc.list()` (coda) and `as_draws()` (posterior)
+  convert a fit to standard formats with the human-readable parameter labels
+  used by `summary()`, opening up bayesplot/tidybayes/posterior tooling
+  (e.g. `bayesplot::mcmc_trace(as.mcmc.list(fit), pars = "Intc")`).
+
 * `ivd()` accepts arbitrary grouping IDs (character, factor, or numeric with
   gaps, e.g. real school codes). IDs are recoded internally to the 1..J index
   NIMBLE needs -- without reordering the data -- and the original labels are
