@@ -2,6 +2,10 @@
 
 ## New features
 
+* New `simulate_ivd()`: simulates data from the intercept-only MELSM with a
+  known subset of clusters whose within-cluster SD is inflated (or deflated)
+  by a chosen factor. Returns the data ready for `ivd()` plus the ground
+  truth per cluster -- for power analysis, teaching, and recovery checks.
 * New `pp_check()` method: posterior predictive check of the within-cluster
   SDs -- the quantity the spike-and-slab makes claims about. Default view
   compares each cluster's observed SD with its predictive interval
