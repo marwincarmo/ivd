@@ -45,6 +45,13 @@
 <li class="nav-item">
   <a class="nav-link" href="getting-started.html">Getting started</a>
 </li>
+<li class="nav-item dropdown">
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-articles">
+    <a class="dropdown-item" href="articles/convergence-and-robustness.html">Convergence and robustness</a>
+    <a class="dropdown-item" href="articles/interpreting-pips.html">Interpreting posterior inclusion probabilities</a>
+  </div>
+</li>
 <li class="nav-item">
   <a class="nav-link" href="reference/index.html">Reference</a>
 </li>
@@ -88,7 +95,12 @@
 <li>
 <code><a href="reference/pip_sensitivity.html">pip_sensitivity()</a></code> shows how the PIPs – and the resulting classifications – would change under different prior inclusion probabilities, computed analytically without refitting.</li>
 <li>
-<code><a href="reference/codaplot.html">codaplot()</a></code> provides MCMC diagnostic plots with readable parameter names.</li>
+<code><a href="reference/pip_fdr.html">pip_fdr()</a></code> selects deviant units by controlling the Bayesian false discovery rate instead of an arbitrary fixed PIP cutoff, and <code><a href="reference/pip_diagnostics.html">pip_diagnostics()</a></code> reports each PIP’s Monte Carlo error and between-chain agreement.</li>
+<li>
+<code><a href="reference/pp_check.html">pp_check()</a></code> runs a posterior predictive check of the within-cluster SDs, and <code>family = "student"</code> provides a robust t likelihood so that heavy tails are not mistaken for variance heterogeneity.</li>
+<li>Priors are tunable (<code>priors =</code>), chains are decoupled from workers (<code>chains =</code>), and <code><a href="reference/simulate_ivd.html">simulate_ivd()</a></code> generates data with known deviant clusters for power analysis and validation.</li>
+<li>
+<code>as.mcmc.list()</code> and <code>as_draws()</code> bridge fits into coda/bayesplot/tidybayes/posterior; <code><a href="reference/codaplot.html">codaplot()</a></code> provides MCMC diagnostic plots with readable parameter names.</li>
 </ul>
 </div>
 <div class="section level2">

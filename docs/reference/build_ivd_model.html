@@ -23,6 +23,13 @@ This function is exported for use in 'future' and is not meant to be called by u
       <ul class="navbar-nav me-auto"><li class="nav-item">
   <a class="nav-link" href="../getting-started.html">Getting started</a>
 </li>
+<li class="nav-item dropdown">
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-articles">
+    <a class="dropdown-item" href="../articles/convergence-and-robustness.html">Convergence and robustness</a>
+    <a class="dropdown-item" href="../articles/interpreting-pips.html">Interpreting posterior inclusion probabilities</a>
+  </div>
+</li>
 <li class="active nav-item">
   <a class="nav-link" href="../reference/index.html">Reference</a>
 </li>
@@ -60,7 +67,8 @@ This function is exported for use in 'future' and is not meant to be called by u
 <span>  <span class="va">dummy_data</span>,</span>
 <span>  <span class="va">dummy_inits</span>,</span>
 <span>  useWAIC <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  monitor_pointwise <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  monitor_pointwise <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  extra_monitors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="fl">0</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -91,6 +99,11 @@ This function is exported for use in 'future' and is not meant to be called by u
 Defaults to FALSE; only needed to reconstruct the pointwise
 log-likelihood. Monitoring them costs O(N x iterations) RAM per chain, so
 they are off unless requested.</p></dd>
+
+
+<dt>extra_monitors</dt>
+<dd><p>Additional model nodes to monitor (e.g. <code>"nu"</code> for
+the student-t degrees of freedom). Defaults to none.</p></dd>
 
 </dl></div>
     <div class="section level2">

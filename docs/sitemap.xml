@@ -4,6 +4,15 @@
     <loc>/404.html</loc>
   </url>
   <url>
+    <loc>/articles/convergence-and-robustness.html</loc>
+  </url>
+  <url>
+    <loc>/articles/index.html</loc>
+  </url>
+  <url>
+    <loc>/articles/interpreting-pips.html</loc>
+  </url>
+  <url>
     <loc>/authors.html</loc>
   </url>
   <url>
@@ -14,6 +23,12 @@
   </url>
   <url>
     <loc>/news/index.html</loc>
+  </url>
+  <url>
+    <loc>/reference/as.mcmc.list.ivd.html</loc>
+  </url>
+  <url>
+    <loc>/reference/as_draws.ivd.html</loc>
   </url>
   <url>
     <loc>/reference/build_ivd_model.html</loc>
@@ -37,6 +52,9 @@
     <loc>/reference/dot-indexed_means.html</loc>
   </url>
   <url>
+    <loc>/reference/dot-ivd_priors.html</loc>
+  </url>
+  <url>
     <loc>/reference/dot-maybe_numeric.html</loc>
   </url>
   <url>
@@ -49,10 +67,16 @@
     <loc>/reference/dot-pooled_draws.html</loc>
   </url>
   <url>
+    <loc>/reference/dot-pp_cluster_sds.html</loc>
+  </url>
+  <url>
     <loc>/reference/dot-progress_line.html</loc>
   </url>
   <url>
     <loc>/reference/dot-reconstruct_mu_means.html</loc>
+  </url>
+  <url>
+    <loc>/reference/dot-renamed_mcmc_list.html</loc>
   </url>
   <url>
     <loc>/reference/dot-require_suggest.html</loc>
@@ -73,6 +97,12 @@
     <loc>/reference/pip.html</loc>
   </url>
   <url>
+    <loc>/reference/pip_diagnostics.html</loc>
+  </url>
+  <url>
+    <loc>/reference/pip_fdr.html</loc>
+  </url>
+  <url>
     <loc>/reference/pip_sensitivity.html</loc>
   </url>
   <url>
@@ -82,10 +112,25 @@
     <loc>/reference/plot.pip_sensitivity.html</loc>
   </url>
   <url>
+    <loc>/reference/pp_check.html</loc>
+  </url>
+  <url>
+    <loc>/reference/pp_check.ivd.html</loc>
+  </url>
+  <url>
     <loc>/reference/prepare_data_for_nimble.html</loc>
   </url>
   <url>
     <loc>/reference/print.ivd.html</loc>
+  </url>
+  <url>
+    <loc>/reference/print.ivd_sim.html</loc>
+  </url>
+  <url>
+    <loc>/reference/print.pip_diagnostics.html</loc>
+  </url>
+  <url>
+    <loc>/reference/print.pip_fdr.html</loc>
   </url>
   <url>
     <loc>/reference/print.summary.ivd.html</loc>
@@ -98,6 +143,9 @@
   </url>
   <url>
     <loc>/reference/saeb.html</loc>
+  </url>
+  <url>
+    <loc>/reference/simulate_ivd.html</loc>
   </url>
   <url>
     <loc>/reference/summary.ivd.html</loc>

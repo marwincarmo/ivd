@@ -25,6 +25,13 @@ on the scale random effects."><meta property="og:image" content="/logo.png"><!--
       <ul class="navbar-nav me-auto"><li class="nav-item">
   <a class="nav-link" href="../getting-started.html">Getting started</a>
 </li>
+<li class="nav-item dropdown">
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-articles">
+    <a class="dropdown-item" href="../articles/convergence-and-robustness.html">Convergence and robustness</a>
+    <a class="dropdown-item" href="../articles/interpreting-pips.html">Interpreting posterior inclusion probabilities</a>
+  </div>
+</li>
 <li class="active nav-item">
   <a class="nav-link" href="../reference/index.html">Reference</a>
 </li>
@@ -65,8 +72,11 @@ on the scale random effects.</p>
 <span>  nburnin <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  WAIC <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  workers <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  chains <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_eff <span class="op">=</span> <span class="st">"local"</span>,</span>
 <span>  ss_prior_p <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>  priors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gaussian"</span>, <span class="st">"student"</span><span class="op">)</span>,</span>
 <span>  thin <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  return_logLik <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -102,7 +112,17 @@ on the scale random effects.</p>
 
 
 <dt>workers</dt>
-<dd><p>Number of parallel R processes -- doubles as 'chains' argument</p></dd>
+<dd><p>Number of parallel R processes the chains are distributed
+over. Defaults to 4. Capped at <code>chains</code> (extra workers would idle).</p></dd>
+
+
+<dt>chains</dt>
+<dd><p>Number of MCMC chains. Defaults to <code>workers</code> (the
+historical one-chain-per-worker behaviour). When <code>chains &gt; workers</code>,
+each worker compiles the model once and runs its chains sequentially on
+the compiled object -- extra chains cost sampling time but no extra
+compilation; chains after a worker's first warm-start from the previous
+chain's state (absorbed by the burnin).</p></dd>
 
 
 <dt>n_eff</dt>
@@ -111,6 +131,48 @@ on the scale random effects.</p>
 
 <dt>ss_prior_p</dt>
 <dd><p>Prior inclusion probability. Defaults to '.5'.</p></dd>
+
+
+<dt>priors</dt>
+<dd><p>Optional named list overriding the prior hyperparameters.
+The distribution families are fixed (normal for fixed effects, half-t
+for the random-effect SDs, LKJ for their correlation); any subset of
+their hyperparameters can be changed:</p><ul><li><p><code>beta_intercept</code>: <code>c(mean = , sd = )</code> for the location
+intercept. Default: empirical, <code>mean(Y)</code> and <code>3*sd(Y)</code>.</p></li>
+<li><p><code>beta</code>: <code>c(mean = 0, sd = 1000)</code> for the remaining
+location coefficients.</p></li>
+<li><p><code>zeta</code>: <code>c(mean = 0, sd = 3)</code> for the scale
+coefficients (log-SD scale).</p></li>
+<li><p><code>sigma_rand</code>: <code>c(df = 3, scale = 1)</code> for the half-t on
+the random-effect SDs.</p></li>
+<li><p><code>lkj_eta</code>: <code>1</code>, the LKJ shape for the random-effect
+correlation matrix (larger favours weaker correlations).</p></li>
+</ul><p>Partial specifications are filled with the defaults, e.g.
+<code>priors = list(zeta = c(sd = 1))</code> only tightens the scale
+coefficients. With <code>family = "student"</code>, <code>nu = c(shape = 2,
+rate = 0.1)</code> sets the gamma prior of the degrees of freedom (see
+<code>family</code>). The prior inclusion probability of the spike-and-slab
+has its own argument, <code>ss_prior_p</code>.</p></dd>
+
+
+<dt>family</dt>
+<dd><p>Likelihood for the observations: <code>"gaussian"</code> (default) or
+<code>"student"</code> for a student-t with estimated degrees of freedom
+\(\nu = 2 + g\), \(g \sim\) gamma(<code>shape</code>, <code>rate</code>) (default mean
+22, guaranteeing a finite residual variance). Heavy-tailed data can
+masquerade as variance heterogeneity under a gaussian likelihood --
+inflating the PIPs of clusters that merely contain outliers. The
+gaussian fit absorbs such tails into the cluster variances (so its own
+<code><a href="pp_check.html">pp_check()</a></code> can look fine); when heavy tails are plausible, fit both
+families and compare WAIC and the PIPs -- a small estimated <code>nu</code>
+together with collapsing PIPs indicates tails rather than genuine
+variance heterogeneity. The student fit typically needs more
+iterations than the gaussian one to mix well; check the Rhat values
+and <code><a href="pip_diagnostics.html">pip_diagnostics()</a></code> before interpreting its PIPs.
+Note that with a student-t the scale model describes the <em>scale</em>
+\(\tau\) of the t distribution, not the SD (which is
+\(\tau\sqrt{\nu/(\nu-2)}\)); \(\nu\) is reported as <code>nu</code> in
+<code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>.</p></dd>
 
 
 <dt>thin</dt>
@@ -178,7 +240,11 @@ outcome plot can reconstruct the posterior mean of <code>mu</code>.</p></li>
 index <code>j</code> back to the user's original grouping IDs.</p></li>
 <li><p><code>location_formula</code>, <code>scale_formula</code>: The model formulas.</p></li>
 <li><p><code>ss_prior_p</code>: The prior inclusion probability used in the fit.</p></li>
-<li><p><code>workers</code>: Number of parallel chains used.</p></li>
+<li><p><code>priors</code>: The fully resolved prior hyperparameters
+(defaults plus any user overrides).</p></li>
+<li><p><code>family</code>: The likelihood family used in the fit.</p></li>
+<li><p><code>workers</code>: Number of parallel worker processes used.</p></li>
+<li><p><code>chains</code>: Number of MCMC chains.</p></li>
 <li><p><code>...</code>: Additional elements created internally and used for
 downstream S3 methods (<code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code>, <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, etc.).</p></li>
 </ul><p>The object is designed to support S3 methods for printing, summarizing,

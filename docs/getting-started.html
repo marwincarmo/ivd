@@ -21,6 +21,13 @@
       <ul class="navbar-nav me-auto"><li class="active nav-item">
   <a class="nav-link" href="getting-started.html">Getting started</a>
 </li>
+<li class="nav-item dropdown">
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-articles">
+    <a class="dropdown-item" href="articles/convergence-and-robustness.html">Convergence and robustness</a>
+    <a class="dropdown-item" href="articles/interpreting-pips.html">Interpreting posterior inclusion probabilities</a>
+  </div>
+</li>
 <li class="nav-item">
   <a class="nav-link" href="reference/index.html">Reference</a>
 </li>
@@ -102,7 +109,7 @@
 <p>One can readily convert those PIP’s to odds, indicating that a school with a PIP = .75 is three times as likely to belonging to the slab than belonging to the spike. With an .50 inclusion prior, these odds can be readily interpreted as Bayes Factors.</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="fu">summary</span>(out)</span>
 <span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="co">#&gt; Summary statistics for ivd model:</span></span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="co">#&gt; Chains (workers): 4 </span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="co">#&gt; Chains: 4 </span></span>
 <span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="co">#&gt; </span></span>
 <span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="co">#&gt;                              Mean    SD Time-series SE   2.5%    50%  97.5%</span></span>
 <span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a><span class="co">#&gt; R[scl_Intc, Intc]          -0.684 0.175          0.006 -0.957 -0.706 -0.287</span></span>
@@ -498,28 +505,102 @@
 <p><img src="reference/figures/README-unnamed-chunk-10-1.png" alt="" width="100%"></p>
 </div>
 <div class="section level2">
+<h2 id="decision-rules-and-pip-diagnostics">Decision rules and PIP diagnostics<a class="anchor" aria-label="anchor" href="#decision-rules-and-pip-diagnostics"></a></h2>
+<p>The conventional PIP threshold of 0.75 is arbitrary. <code><a href="reference/pip_fdr.html">pip_fdr()</a></code> replaces it with a Bayesian false discovery rate rule: it selects the largest set of schools whose expected FDR stays below a target level and reports the implied, data-adaptive PIP threshold:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">pip_fdr</span>(out, <span class="at">fdr =</span> <span class="fl">0.05</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="co">#&gt; Bayesian FDR decision rule (target FDR &lt;= 0.05)</span></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="co">#&gt; Random scale effect: (Intercept)</span></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a><span class="co">#&gt;   Selected 3 of 160 clusters (implied PIP threshold &gt;= 0.892, expected FDR = 0.041):</span></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a><span class="co">#&gt;  cluster_id   pip local_fdr cum_fdr</span></span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a><span class="co">#&gt;          46 0.999    0.0007 0.00070</span></span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="co">#&gt;           9 0.987    0.0131 0.00693</span></span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a><span class="co">#&gt;         114 0.892    0.1080 0.04063</span></span></code></pre></div>
+<p>PIPs are posterior means of binary indicators, so the usual Rhat is not informative for them. <code><a href="reference/pip_diagnostics.html">pip_diagnostics()</a></code> reports per-chain PIPs, each PIP’s Monte Carlo error, and flags schools whose classification differs between chains – those should not be classified either way without more iterations:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>diag <span class="ot">&lt;-</span> <span class="fu">pip_diagnostics</span>(out)</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="fu">print</span>(diag)</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a><span class="co">#&gt; PIP Monte Carlo diagnostics (4 chains, classification at PIP &gt;= 0.75)</span></span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a><span class="co">#&gt;   Max. MCSE of a PIP:              0.012</span></span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a><span class="co">#&gt;   Max. between-chain PIP range:    0.059</span></span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a><span class="co">#&gt;   3 of 160 PIPs are classified inconsistently across chains (see below);</span></span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a><span class="co">#&gt;   consider more iterations before classifying these clusters.</span></span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a><span class="co">#&gt;    scale_var cluster_id   pip chain1 chain2 chain3 chain4    mcse  range</span></span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a><span class="co">#&gt;  (Intercept)         95 0.751  0.751  0.743  0.763  0.746 0.00431 0.0196</span></span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a><span class="co">#&gt;  (Intercept)        124 0.752  0.741  0.752  0.757  0.760 0.00414 0.0186</span></span>
+<span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a><span class="co">#&gt;  (Intercept)        153 0.762  0.746  0.760  0.776  0.767 0.00620 0.0294</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="posterior-predictive-check">Posterior predictive check<a class="anchor" aria-label="anchor" href="#posterior-predictive-check"></a></h2>
+<p><code><a href="reference/pp_check.html">pp_check()</a></code> replicates data from the posterior and compares every school’s <em>observed</em> within-school SD with its posterior predictive interval – a direct check of the quantity the spike-and-slab makes claims about:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="fu">pp_check</span>(out, <span class="at">ndraws =</span> <span class="dv">200</span>, <span class="at">seed =</span> <span class="dv">1</span>)</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="co">#&gt; Warning in pp_check.ivd(out, ndraws = 200, seed = 1): 1 cluster(s) with a</span></span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a><span class="co">#&gt; single observation were dropped from the check.</span></span></code></pre></div>
+<p><img src="reference/figures/README-unnamed-chunk-13-1.png" alt="" width="100%"></p>
+</div>
+<div class="section level2">
+<h2 id="beyond-the-defaults">Beyond the defaults<a class="anchor" aria-label="anchor" href="#beyond-the-defaults"></a></h2>
+<p><strong>Priors.</strong> The prior hyperparameters are tunable through a named list; any subset can be changed and the rest keep their defaults:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>out <span class="ot">&lt;-</span> <span class="fu">ivd</span>(..., <span class="at">priors =</span> <span class="fu">list</span>(<span class="at">zeta =</span> <span class="fu">c</span>(<span class="at">sd =</span> <span class="dv">1</span>), <span class="at">lkj_eta =</span> <span class="dv">2</span>))</span></code></pre></div>
+<p><strong>Robust likelihood.</strong> Heavy-tailed data can masquerade as variance heterogeneity: under the gaussian likelihood, schools that merely contain outliers can get large PIPs. <code>family = "student"</code> fits a student-t likelihood with estimated degrees of freedom (reported as <code>nu</code> in the summary) that absorbs such tails; see <code><a href="articles/convergence-and-robustness.html">vignette("convergence-and-robustness", package = "ivd")</a></code> for a worked demonstration.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>out_t <span class="ot">&lt;-</span> <span class="fu">ivd</span>(..., <span class="at">family =</span> <span class="st">"student"</span>)</span></code></pre></div>
+<p><strong>Chains and workers.</strong> The number of MCMC chains is decoupled from the number of parallel processes; each worker compiles the model once and reuses it for its chains, so extra chains cost sampling time but no additional compilation:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a>out <span class="ot">&lt;-</span> <span class="fu">ivd</span>(..., <span class="at">chains =</span> <span class="dv">8</span>, <span class="at">workers =</span> <span class="dv">4</span>)</span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="simulating-data-with-known-deviant-clusters">Simulating data with known deviant clusters<a class="anchor" aria-label="anchor" href="#simulating-data-with-known-deviant-clusters"></a></h2>
+<p><code><a href="reference/simulate_ivd.html">simulate_ivd()</a></code> generates data from the intercept-only MELSM with a chosen subset of clusters whose within-cluster SD deviates by a known factor – useful for power analysis and for validating the workflow end to end:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a>sim <span class="ot">&lt;-</span> <span class="fu">simulate_ivd</span>(<span class="at">J =</span> <span class="dv">40</span>, <span class="at">n_j =</span> <span class="dv">50</span>, <span class="at">deviant_clusters =</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">13</span>, <span class="dv">27</span>, <span class="dv">38</span>),</span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a>                    <span class="at">deviant_factor =</span> <span class="fl">2.5</span>, <span class="at">seed =</span> <span class="dv">123</span>)</span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a>sim</span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a><span class="co">#&gt; Simulated MELSM data: 40 clusters, 2000 observations</span></span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a><span class="co">#&gt;   Baseline within-cluster SD: 1 (location grand mean 0, tau_loc 0.5)</span></span>
+<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a><span class="co">#&gt;   4 deviant cluster(s): 5, 13, 27, 38 (SD factor 2.5)</span></span>
+<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a><span class="co">#&gt; Fit with, e.g.:</span></span>
+<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a><span class="co">#&gt;   ivd(y ~ 1 + (1 | id), ~ 1 + (1 | id), data = &lt;sim&gt;$data, ...)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="using-the-posterior-elsewhere">Using the posterior elsewhere<a class="anchor" aria-label="anchor" href="#using-the-posterior-elsewhere"></a></h2>
+<p><code>as.mcmc.list()</code> (coda) and <code>as_draws()</code> (posterior) expose the samples under the same readable labels used by <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, which opens up bayesplot, tidybayes, and the posterior toolchain:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a>post <span class="ot">&lt;-</span> coda<span class="sc">::</span><span class="fu">as.mcmc.list</span>(out)</span>
+<span id="cb18-2"><a href="#cb18-2" tabindex="-1"></a><span class="fu">colnames</span>(post[[<span class="dv">1</span>]])[<span class="dv">1</span><span class="sc">:</span><span class="dv">8</span>]</span>
+<span id="cb18-3"><a href="#cb18-3" tabindex="-1"></a><span class="co">#&gt; [1] "R[scl_Intc, Intc]"      "Intc"                   "student_ses"           </span></span>
+<span id="cb18-4"><a href="#cb18-4" tabindex="-1"></a><span class="co">#&gt; [4] "school_ses"             "student_ses:school_ses" "sd_Intc"               </span></span>
+<span id="cb18-5"><a href="#cb18-5" tabindex="-1"></a><span class="co">#&gt; [7] "sd_scl_Intc"            "pip[Intc, 1]"</span></span>
+<span id="cb18-6"><a href="#cb18-6" tabindex="-1"></a></span>
+<span id="cb18-7"><a href="#cb18-7" tabindex="-1"></a>posterior<span class="sc">::</span><span class="fu">summarise_draws</span>(posterior<span class="sc">::</span><span class="fu">subset_draws</span>(</span>
+<span id="cb18-8"><a href="#cb18-8" tabindex="-1"></a>  posterior<span class="sc">::</span><span class="fu">as_draws</span>(out), <span class="at">variable =</span> <span class="fu">c</span>(<span class="st">"Intc"</span>, <span class="st">"scl_Intc"</span>)))</span>
+<span id="cb18-9"><a href="#cb18-9" tabindex="-1"></a><span class="co">#&gt; # A tibble: 2 × 10</span></span>
+<span id="cb18-10"><a href="#cb18-10" tabindex="-1"></a><span class="co">#&gt;   variable   mean median      sd     mad      q5    q95  rhat ess_bulk ess_tail</span></span>
+<span id="cb18-11"><a href="#cb18-11" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;     &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
+<span id="cb18-12"><a href="#cb18-12" tabindex="-1"></a><span class="co">#&gt; 1 Intc      0.129  0.129 0.0252  0.0233   0.0900  0.169  1.01     304.     250.</span></span>
+<span id="cb18-13"><a href="#cb18-13" tabindex="-1"></a><span class="co">#&gt; 2 scl_Intc -0.234 -0.234 0.00844 0.00837 -0.248  -0.220  1.00    1366.    2932.</span></span></code></pre></div>
+</div>
+<div class="section level2">
 <h2 id="plots">Plots<a class="anchor" aria-label="anchor" href="#plots"></a></h2>
 <div class="section level3">
 <h3 id="posterior-inclusion-probability-plot-pip">Posterior inclusion probability plot (PIP)<a class="anchor" aria-label="anchor" href="#posterior-inclusion-probability-plot-pip"></a></h3>
-<div class="sourceCode" id="cb11"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">plot</span>(out, <span class="at">type =</span> <span class="st">"pip"</span>)</span></code></pre></div>
-<p><img src="reference/figures/README-unnamed-chunk-11-1.png" alt="" width="100%"></p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a><span class="fu">plot</span>(out, <span class="at">type =</span> <span class="st">"pip"</span>)</span></code></pre></div>
+<p><img src="reference/figures/README-unnamed-chunk-20-1.png" alt="" width="100%"></p>
 </div>
 <div class="section level3">
 <h3 id="pip-vs-within-cluster-sd">PIP vs. Within-cluster SD<a class="anchor" aria-label="anchor" href="#pip-vs-within-cluster-sd"></a></h3>
-<div class="sourceCode" id="cb12"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="fu">plot</span>(out, <span class="at">type =</span>  <span class="st">"funnel"</span>)</span></code></pre></div>
-<p><img src="reference/figures/README-unnamed-chunk-12-1.png" alt="" width="100%"></p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a><span class="fu">plot</span>(out, <span class="at">type =</span>  <span class="st">"funnel"</span>)</span></code></pre></div>
+<p><img src="reference/figures/README-unnamed-chunk-21-1.png" alt="" width="100%"></p>
 </div>
 <div class="section level3">
 <h3 id="pip-vs-math-achievement">PIP vs. math achievement<a class="anchor" aria-label="anchor" href="#pip-vs-math-achievement"></a></h3>
-<div class="sourceCode" id="cb13"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="fu">plot</span>(out, <span class="at">type =</span>  <span class="st">"outcome"</span>)</span></code></pre></div>
-<p><img src="reference/figures/README-unnamed-chunk-13-1.png" alt="" width="100%"></p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a><span class="fu">plot</span>(out, <span class="at">type =</span>  <span class="st">"outcome"</span>)</span></code></pre></div>
+<p><img src="reference/figures/README-unnamed-chunk-22-1.png" alt="" width="100%"></p>
 </div>
 <div class="section level3">
 <h3 id="diagnostic-plots-based-on-coda-plots">Diagnostic plots based on coda plots:<a class="anchor" aria-label="anchor" href="#diagnostic-plots-based-on-coda-plots"></a></h3>
-<div class="sourceCode" id="cb14"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="fu">codaplot</span>(out, <span class="at">parameters =</span>  <span class="st">"Intc"</span>)</span></code></pre></div>
-<p><img src="reference/figures/README-unnamed-chunk-15-1.png" alt="" width="100%"></p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="fu">codaplot</span>(out, <span class="at">parameters =</span>  <span class="st">"R[scl_Intc, Intc]"</span>)</span></code></pre></div>
-<p><img src="reference/figures/README-unnamed-chunk-15-2.png" alt="" width="100%"></p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" tabindex="-1"></a><span class="fu">codaplot</span>(out, <span class="at">parameters =</span>  <span class="st">"Intc"</span>)</span></code></pre></div>
+<p><img src="reference/figures/README-unnamed-chunk-24-1.png" alt="" width="100%"></p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a><span class="fu">codaplot</span>(out, <span class="at">parameters =</span>  <span class="st">"R[scl_Intc, Intc]"</span>)</span></code></pre></div>
+<p><img src="reference/figures/README-unnamed-chunk-24-2.png" alt="" width="100%"></p>
 </div>
 </div>
 </div>

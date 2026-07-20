@@ -21,6 +21,13 @@
       <ul class="navbar-nav me-auto"><li class="nav-item">
   <a class="nav-link" href="../getting-started.html">Getting started</a>
 </li>
+<li class="nav-item dropdown">
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-articles">
+    <a class="dropdown-item" href="../articles/convergence-and-robustness.html">Convergence and robustness</a>
+    <a class="dropdown-item" href="../articles/interpreting-pips.html">Interpreting posterior inclusion probabilities</a>
+  </div>
+</li>
 <li class="active nav-item">
   <a class="nav-link" href="../reference/index.html">Reference</a>
 </li>
@@ -55,6 +62,16 @@
       
 
       <dl><dt>
+          
+          <code><a href="as.mcmc.list.ivd.html">as.mcmc.list(<i>&lt;ivd&gt;</i>)</a></code> 
+        </dt>
+        <dd>Convert an ivd fit to an mcmc.list</dd>
+      </dl><dl><dt>
+          
+          <code><a href="as_draws.ivd.html">as_draws(<i>&lt;ivd&gt;</i>)</a></code> 
+        </dt>
+        <dd>Convert an ivd fit to a posterior draws object</dd>
+      </dl><dl><dt>
           
           <code><a href="build_ivd_model.html">build_ivd_model()</a></code> 
         </dt>
@@ -91,6 +108,16 @@
         <dd>Extract PIPs from a fitted ivd model</dd>
       </dl><dl><dt>
           
+          <code><a href="pip_diagnostics.html">pip_diagnostics()</a></code> 
+        </dt>
+        <dd>Monte Carlo error and chain agreement of the PIPs</dd>
+      </dl><dl><dt>
+          
+          <code><a href="pip_fdr.html">pip_fdr()</a></code> 
+        </dt>
+        <dd>Select deviant clusters by controlling the Bayesian FDR</dd>
+      </dl><dl><dt>
+          
           <code><a href="pip_sensitivity.html">pip_sensitivity()</a></code> 
         </dt>
         <dd>Analytic prior-sensitivity for PIPs</dd>
@@ -106,9 +133,34 @@
         <dd>Plot method for pip_sensitivity objects</dd>
       </dl><dl><dt>
           
+          <code><a href="pp_check.html">pp_check()</a></code> 
+        </dt>
+        <dd>Posterior predictive check</dd>
+      </dl><dl><dt>
+          
+          <code><a href="pp_check.ivd.html">pp_check(<i>&lt;ivd&gt;</i>)</a></code> 
+        </dt>
+        <dd>Posterior predictive check for ivd models</dd>
+      </dl><dl><dt>
+          
           <code><a href="print.ivd.html">print(<i>&lt;ivd&gt;</i>)</a></code> 
         </dt>
         <dd>Print method for ivd objects</dd>
+      </dl><dl><dt>
+          
+          <code><a href="print.ivd_sim.html">print(<i>&lt;ivd_sim&gt;</i>)</a></code> 
+        </dt>
+        <dd>Print an ivd_sim object</dd>
+      </dl><dl><dt>
+          
+          <code><a href="print.pip_diagnostics.html">print(<i>&lt;pip_diagnostics&gt;</i>)</a></code> 
+        </dt>
+        <dd>Print PIP Monte Carlo diagnostics</dd>
+      </dl><dl><dt>
+          
+          <code><a href="print.pip_fdr.html">print(<i>&lt;pip_fdr&gt;</i>)</a></code> 
+        </dt>
+        <dd>Print a pip_fdr selection</dd>
       </dl><dl><dt>
           
           <code><a href="print.summary.ivd.html">print(<i>&lt;summary.ivd&gt;</i>)</a></code> 
@@ -129,6 +181,11 @@
           <code><a href="saeb.html">saeb</a></code> 
         </dt>
         <dd>Basic Education Evaluation System (Saeb) -2021</dd>
+      </dl><dl><dt>
+          
+          <code><a href="simulate_ivd.html">simulate_ivd()</a></code> 
+        </dt>
+        <dd>Simulate data with deviant within-cluster variances</dd>
       </dl><dl><dt>
           
           <code><a href="summary.ivd.html">summary(<i>&lt;ivd&gt;</i>)</a></code> 

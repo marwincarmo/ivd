@@ -1,6 +1,8 @@
 pandoc: '3.8'
 pkgdown: 2.0.9
 pkgdown_sha: ~
-articles: {}
-last_built: 2026-07-15T21:41Z
+articles:
+  convergence-and-robustness: convergence-and-robustness.html
+  interpreting-pips: interpreting-pips.html
+last_built: 2026-07-20T05:07Z
 
