@@ -8,9 +8,10 @@
 }
 \arguments{
 \item{priors}{Named list with any of \code{beta_intercept}, \code{beta}, \code{zeta}
-(each \code{c(mean = , sd = )}), \code{sigma_rand} (\code{c(df = , scale = )}), and
-\code{lkj_eta} (single positive number). Partial specifications are filled
-with the defaults.}
+(each \code{c(mean = , sd = )}), \code{sigma_rand} (\code{c(df = , scale = )}),
+\code{lkj_eta} (single positive number), and \code{nu} (\code{c(shape = , rate = )},
+student-t df prior). Partial specifications are filled with the
+defaults.}
 
 \item{mean_pred, sd_pred}{Empirical mean and SD of the response, used for
 the default location-intercept prior.}

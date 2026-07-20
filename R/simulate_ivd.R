@@ -27,8 +27,16 @@
 ##'   one value per deviant cluster. Defaults to 2.
 ##' @param beta Location grand mean (fixed intercept). Defaults to 0.
 ##' @param sigma_within Baseline within-cluster SD of the regular clusters.
-##'   Defaults to 1.
+##'   Defaults to 1. With `family = "student"` this is the *scale* of the t
+##'   (its SD is `sigma_within * sqrt(df/(df-2))`).
 ##' @param tau_loc SD of the location random intercepts. Defaults to 0.5.
+##' @param family Residual distribution: `"gaussian"` (default) or
+##'   `"student"` for heavy-tailed t residuals with `df` degrees of freedom
+##'   -- useful for checking how heavy tails masquerade as variance
+##'   heterogeneity under a gaussian [ivd()] fit.
+##' @param df Degrees of freedom of the student-t residuals (must be > 2 so
+##'   the variance exists). Only used with `family = "student"`. Defaults
+##'   to 3.
 ##' @param seed Optional seed for reproducibility.
 ##' @return A list of class `ivd_sim`:
 ##' \itemize{
@@ -54,7 +62,13 @@ simulate_ivd <- function(J = 100, n_j = 20,
                          deviant_clusters = NULL,
                          deviant_factor = 2,
                          beta = 0, sigma_within = 1, tau_loc = 0.5,
+                         family = c("gaussian", "student"), df = 3,
                          seed = NULL) {
+  family <- match.arg(family)
+  if (!is.numeric(df) || length(df) != 1 || df <= 2) {
+    stop("`df` must be a single number > 2 (so the residual variance exists).",
+         call. = FALSE)
+  }
   if (!is.numeric(J) || length(J) != 1 || J < 2 || J != round(J)) {
     stop("`J` must be a single integer >= 2.", call. = FALSE)
   }
@@ -106,7 +120,12 @@ simulate_ivd <- function(J = 100, n_j = 20,
   u_loc <- rnorm(J, 0, tau_loc)
 
   id <- rep(seq_len(J), times = n_j)
-  y <- beta + u_loc[id] + rnorm(sum(n_j), 0, sd_within[id])
+  resid <- if (family == "student") {
+    sd_within[id] * stats::rt(sum(n_j), df = df)
+  } else {
+    rnorm(sum(n_j), 0, sd_within[id])
+  }
+  y <- beta + u_loc[id] + resid
 
   truth <- data.frame(
     id = seq_len(J),
@@ -124,6 +143,7 @@ simulate_ivd <- function(J = 100, n_j = 20,
       params = list(J = J, n_j = n_j, deviant_clusters = deviant_clusters,
                     deviant_factor = deviant_factor, beta = beta,
                     sigma_within = sigma_within, tau_loc = tau_loc,
+                    family = family, df = if (family == "student") df else NULL,
                     seed = seed)
     ),
     class = c("ivd_sim", "list")
@@ -140,9 +160,13 @@ simulate_ivd <- function(J = 100, n_j = 20,
 print.ivd_sim <- function(x, ...) {
   p <- x$params
   dev <- x$truth[x$truth$deviant, , drop = FALSE]
-  cat(sprintf("Simulated MELSM data: %d clusters, %d observations\n",
-              p$J, nrow(x$data)))
-  cat(sprintf("  Baseline within-cluster SD: %g (location grand mean %g, tau_loc %g)\n",
+  cat(sprintf("Simulated MELSM data: %d clusters, %d observations%s\n",
+              p$J, nrow(x$data),
+              if (identical(p$family, "student")) {
+                sprintf(" (student-t residuals, df = %g)", p$df)
+              } else ""))
+  cat(sprintf("  Baseline within-cluster %s: %g (location grand mean %g, tau_loc %g)\n",
+              if (identical(p$family, "student")) "scale" else "SD",
               p$sigma_within, p$beta, p$tau_loc))
   if (nrow(dev) == 0) {
     cat("  No deviant clusters.\n")

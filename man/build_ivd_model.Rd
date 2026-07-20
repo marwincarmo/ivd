@@ -11,7 +11,8 @@ build_ivd_model(
   dummy_data,
   dummy_inits,
   useWAIC = TRUE,
-  monitor_pointwise = FALSE
+  monitor_pointwise = FALSE,
+  extra_monitors = character(0)
 )
 }
 \arguments{
@@ -29,6 +30,9 @@ build_ivd_model(
 Defaults to FALSE; only needed to reconstruct the pointwise
 log-likelihood. Monitoring them costs O(N x iterations) RAM per chain, so
 they are off unless requested.}
+
+\item{extra_monitors}{Additional model nodes to monitor (e.g. \code{"nu"} for
+the student-t degrees of freedom). Defaults to none.}
 }
 \value{
 A named \code{list} with two elements:

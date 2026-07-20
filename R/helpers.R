@@ -360,9 +360,10 @@ prepare_data_for_nimble <- function(data, location_formula, scale_formula) {
 ##' user's `priors` can never inject model code.
 ##' @title Resolve the prior specification for ivd()
 ##' @param priors Named list with any of `beta_intercept`, `beta`, `zeta`
-##'   (each `c(mean = , sd = )`), `sigma_rand` (`c(df = , scale = )`), and
-##'   `lkj_eta` (single positive number). Partial specifications are filled
-##'   with the defaults.
+##'   (each `c(mean = , sd = )`), `sigma_rand` (`c(df = , scale = )`),
+##'   `lkj_eta` (single positive number), and `nu` (`c(shape = , rate = )`,
+##'   student-t df prior). Partial specifications are filled with the
+##'   defaults.
 ##' @param mean_pred,sd_pred Empirical mean and SD of the response, used for
 ##'   the default location-intercept prior.
 ##' @return Fully resolved named list of the same shape, with an
@@ -376,7 +377,10 @@ prepare_data_for_nimble <- function(data, location_formula, scale_formula) {
     beta = c(mean = 0, sd = 1000),
     zeta = c(mean = 0, sd = 3),
     sigma_rand = c(df = 3, scale = 1),
-    lkj_eta = 1
+    lkj_eta = 1,
+    ## gamma prior of the student-t df (nu = 2 + gamma); used only when
+    ## ivd(family = "student")
+    nu = c(shape = 2, rate = 0.1)
   )
   if (is.null(priors)) priors <- list()
   if (!is.list(priors)) {
@@ -429,6 +433,9 @@ prepare_data_for_nimble <- function(data, location_formula, scale_formula) {
   }
   if (resolved$lkj_eta <= 0) {
     stop("`priors$lkj_eta` must be positive.", call. = FALSE)
+  }
+  if (resolved$nu[["shape"]] <= 0 || resolved$nu[["rate"]] <= 0) {
+    stop("`priors$nu` needs shape > 0 and rate > 0.", call. = FALSE)
   }
 
   attr(resolved, "empirical_intercept") <- !("beta_intercept" %in% names(priors))

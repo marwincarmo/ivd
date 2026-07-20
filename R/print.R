@@ -22,6 +22,11 @@ print.ivd <- function(x, ...) {
     cat(" Scale:   ", .fmt_formula(x$scale_formula), "\n")
   }
 
+  ## Family line only for student-t fits; legacy/gaussian objects stay as-is.
+  if (identical(x$family, "student")) {
+    cat(" Family:   student-t (estimated df, see `nu` in summary())\n")
+  }
+
   N <- nrow(x$Y)
   J <- x$nimble_constants$J
   chains <- length(x$samples)

@@ -48,6 +48,13 @@
          "from the stored samples.", call. = FALSE)
   }
 
+  ## student-t fits replicate from a t with the draw's df; tau is its scale
+  student <- identical(object$family, "student")
+  if (student && !("nu" %in% cn)) {
+    stop("Cannot run pp_check: this student-t fit has no stored `nu` draws.",
+         call. = FALSE)
+  }
+
   if (!is.null(seed)) set.seed(seed)
   ndraws <- min(ndraws, nrow(draws))
   draw_ids <- sample.int(nrow(draws), ndraws)
@@ -67,7 +74,11 @@
       rowSums(object$Z * u_mat[group_id, Xb_cols, drop = FALSE])
     tau <- exp(as.numeric(object$X_scale %*% d[zeta_cols]) +
                  rowSums(object$Z_scale * u_mat[group_id, Zs_cols, drop = FALSE]))
-    y_rep <- rnorm(N, mu, tau)
+    y_rep <- if (student) {
+      mu + tau * stats::rt(N, df = d[["nu"]])
+    } else {
+      rnorm(N, mu, tau)
+    }
     rep_mat[s, ] <- tapply(y_rep, group_id, sd)
   }
 

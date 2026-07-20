@@ -232,6 +232,13 @@ plot.ivd <- function(x, type = "pip", pip_level = .75, variable = NULL, label_po
     df_pip <-
         cbind(df_pip[order(df_pip$id), ], mu)
 
+    ## Under a student-t likelihood tau is the *scale* of the t, not the SD.
+    tau_lab <- if (identical(obj$family, "student")) {
+        "Within-Cluster Scale (t)"
+    } else {
+        "Within-Cluster SD"
+    }
+
     ## Point labels: the compact internal index by default; the user's
     ## original grouping IDs with labels = "original" (matches the summary
     ## table's labels argument).
@@ -306,7 +313,7 @@ plot.ivd <- function(x, type = "pip", pip_level = .75, variable = NULL, label_po
                 position = "jitter",
                 color = "white"
             ) +
-            labs(x = "Within-Cluster SD") +
+            labs(x = tau_lab) +
             geom_abline(intercept = pip_level, slope = 0, lty = 3) +
             ggtitle(variable) +
             guides(fill = "none")
@@ -347,7 +354,7 @@ plot.ivd <- function(x, type = "pip", pip_level = .75, variable = NULL, label_po
                 midpoint = median(df_pip$tau, na.rm = TRUE), ,
                 low = "#2166ACFF", high = "#B2182BFF",
                 mid = "#F7F7F7FF",
-                name = "Within-cluster SD"
+                name = tau_lab
             ) +
             scale_color_gradient2(
                 midpoint = median(df_pip$tau, na.rm = TRUE), ,

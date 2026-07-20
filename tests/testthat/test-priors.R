@@ -9,6 +9,7 @@ test_that(".ivd_priors returns the documented defaults", {
   expect_equal(p$zeta, c(mean = 0, sd = 3))
   expect_equal(p$sigma_rand, c(df = 3, scale = 1))
   expect_equal(p$lkj_eta, 1)
+  expect_equal(p$nu, c(shape = 2, rate = 0.1))
   expect_true(attr(p, "empirical_intercept"))
 
   ## NULL behaves like an empty list
@@ -51,6 +52,8 @@ test_that(".ivd_priors rejects invalid hyperparameter values", {
   expect_error(ivd:::.ivd_priors(list(sigma_rand = c(scale = -2)), 0, 1),
                "df > 0 and scale > 0")
   expect_error(ivd:::.ivd_priors(list(lkj_eta = -1), 0, 1), "must be positive")
+  expect_error(ivd:::.ivd_priors(list(nu = c(shape = 0)), 0, 1),
+               "shape > 0 and rate > 0")
   expect_error(ivd:::.ivd_priors(list(zeta = c(mean = NA_real_)), 0, 1),
                "missing values")
   ## a logical NA is not numeric and fails the shape check instead

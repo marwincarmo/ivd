@@ -51,6 +51,26 @@ test_that("simulated SDs match the requested generative values", {
   expect_true(all(s0$truth$u_loc == 0))
 })
 
+test_that("simulate_ivd generates student-t residuals with the right scale", {
+  ## t residuals: empirical SD -> scale * sqrt(df/(df-2))
+  sim <- simulate_ivd(J = 8, n_j = 5000, n_deviant = 0, sigma_within = 2,
+                      tau_loc = 0, family = "student", df = 5, seed = 11)
+  emp_sd <- tapply(sim$data$y, sim$data$id, sd)
+  expect_equal(unname(c(emp_sd)), rep(2 * sqrt(5 / 3), 8), tolerance = 0.1)
+  expect_equal(sim$params$family, "student")
+  expect_equal(sim$params$df, 5)
+
+  ## gaussian sims don't carry a df
+  expect_null(simulate_ivd(J = 4, n_j = 5, seed = 1)$params$df)
+
+  ## df must exceed 2
+  expect_error(simulate_ivd(J = 4, family = "student", df = 2), "> 2")
+
+  ## print mentions the family
+  expect_output(print(sim), "student-t residuals, df = 5")
+  expect_output(print(sim), "within-cluster scale")
+})
+
 test_that("simulate_ivd supports unequal cluster sizes", {
   n_j <- c(5, 10, 15, 20)
   sim <- simulate_ivd(J = 4, n_j = n_j, n_deviant = 1, seed = 3)

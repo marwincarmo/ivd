@@ -17,6 +17,7 @@ ivd(
   n_eff = "local",
   ss_prior_p = 0.5,
   priors = list(),
+  family = c("gaussian", "student"),
   thin = 1,
   return_logLik = FALSE,
   seed = NULL,
@@ -61,8 +62,28 @@ correlation matrix (larger favours weaker correlations).
 }
 Partial specifications are filled with the defaults, e.g.
 \code{priors = list(zeta = c(sd = 1))} only tightens the scale
-coefficients. The prior inclusion probability of the spike-and-slab has
-its own argument, \code{ss_prior_p}.}
+coefficients. With \code{family = "student"}, \code{nu = c(shape = 2,
+rate = 0.1)} sets the gamma prior of the degrees of freedom (see
+\code{family}). The prior inclusion probability of the spike-and-slab
+has its own argument, \code{ss_prior_p}.}
+
+\item{family}{Likelihood for the observations: \code{"gaussian"} (default) or
+\code{"student"} for a student-t with estimated degrees of freedom
+\eqn{\nu = 2 + g}, \eqn{g \sim} gamma(\code{shape}, \code{rate}) (default mean
+22, guaranteeing a finite residual variance). Heavy-tailed data can
+masquerade as variance heterogeneity under a gaussian likelihood --
+inflating the PIPs of clusters that merely contain outliers. The
+gaussian fit absorbs such tails into the cluster variances (so its own
+\code{pp_check()} can look fine); when heavy tails are plausible, fit both
+families and compare WAIC and the PIPs -- a small estimated \code{nu}
+together with collapsing PIPs indicates tails rather than genuine
+variance heterogeneity. The student fit typically needs more
+iterations than the gaussian one to mix well; check the Rhat values
+and \code{\link[=pip_diagnostics]{pip_diagnostics()}} before interpreting its PIPs.
+Note that with a student-t the scale model describes the \emph{scale}
+\eqn{\tau} of the t distribution, not the SD (which is
+\eqn{\tau\sqrt{\nu/(\nu-2)}}); \eqn{\nu} is reported as \code{nu} in
+\code{summary()}.}
 
 \item{thin}{Thinning interval for stored posterior draws. Defaults to 1
 (keep every iteration). Larger values cut stored-sample RAM linearly.}
@@ -127,6 +148,7 @@ index \code{j} back to the user's original grouping IDs.
 \item \code{ss_prior_p}: The prior inclusion probability used in the fit.
 \item \code{priors}: The fully resolved prior hyperparameters
 (defaults plus any user overrides).
+\item \code{family}: The likelihood family used in the fit.
 
 \item \code{workers}: Number of parallel chains used.
 

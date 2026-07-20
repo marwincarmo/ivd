@@ -2,6 +2,13 @@
 
 ## New features
 
+* New `family = "student"` option in `ivd()`: a student-t likelihood with
+  estimated degrees of freedom (`nu = 2 + gamma(shape, rate)`, reported as
+  `nu` in `summary()`; prior tunable via `priors = list(nu = ...)`). Heavy
+  tails can masquerade as variance heterogeneity under the gaussian
+  likelihood, inflating PIPs of clusters that merely contain outliers --
+  `"student"` absorbs the tails instead. `pp_check()`, WAIC/logLik, plots
+  and `simulate_ivd()` (via its own `family`/`df` arguments) all support it.
 * New `simulate_ivd()`: simulates data from the intercept-only MELSM with a
   known subset of clusters whose within-cluster SD is inflated (or deflated)
   by a chosen factor. Returns the data ready for `ivd()` plus the ground

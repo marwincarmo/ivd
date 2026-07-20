@@ -13,6 +13,8 @@ simulate_ivd(
   beta = 0,
   sigma_within = 1,
   tau_loc = 0.5,
+  family = c("gaussian", "student"),
+  df = 3,
   seed = NULL
 )
 }
@@ -35,9 +37,19 @@ one value per deviant cluster. Defaults to 2.}
 \item{beta}{Location grand mean (fixed intercept). Defaults to 0.}
 
 \item{sigma_within}{Baseline within-cluster SD of the regular clusters.
-Defaults to 1.}
+Defaults to 1. With \code{family = "student"} this is the \emph{scale} of the t
+(its SD is \code{sigma_within * sqrt(df/(df-2))}).}
 
 \item{tau_loc}{SD of the location random intercepts. Defaults to 0.5.}
+
+\item{family}{Residual distribution: \code{"gaussian"} (default) or
+\code{"student"} for heavy-tailed t residuals with \code{df} degrees of freedom
+-- useful for checking how heavy tails masquerade as variance
+heterogeneity under a gaussian \code{\link[=ivd]{ivd()}} fit.}
+
+\item{df}{Degrees of freedom of the student-t residuals (must be > 2 so
+the variance exists). Only used with \code{family = "student"}. Defaults
+to 3.}
 
 \item{seed}{Optional seed for reproducibility.}
 }

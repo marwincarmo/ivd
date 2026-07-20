@@ -156,6 +156,29 @@ test_that("ivd monitors neither mu nor tau, and omits logLik, by default (memory
     expect_s3_class(suppressWarnings(plot(out, type = "outcome", label_points = FALSE)), "ggplot")
 })
 
+test_that("ivd fits a student-t likelihood and monitors nu", {
+    skip_if(Sys.getenv("R_COVR") == "true", "covr instrumentation breaks nimbleCode model building")
+
+    out <- suppressWarnings(ivd(
+        location_formula = Y ~ 1 + (1 | grouping),
+        scale_formula = ~ 1 + (1 | grouping),
+        data = data.frame(Y = rnorm(100), grouping = rep(1:10, each = 10)),
+        niter = 100, nburnin = 50, WAIC = TRUE, workers = 2, n_eff = "stan",
+        family = "student"
+    ))
+    expect_equal(out$family, "student")
+    expect_true("nu" %in% colnames(out$samples[[1]]$samples))
+    ## nu = 2 + gamma draws stay above the finite-variance bound
+    expect_true(all(out$samples[[1]]$samples[, "nu"] > 2))
+    ## the student constants reached the model
+    expect_equal(out$nimble_constants$student, 1L)
+    expect_equal(out$priors$nu, c(shape = 2, rate = 0.1))
+    ## downstream methods handle the extra nu parameter
+    expect_output(print(out), "student-t")
+    expect_no_error(suppressWarnings(summary(out)))
+    expect_s3_class(pp_check(out, ndraws = 10, seed = 1), "ggplot")
+})
+
 test_that("ivd fits with character grouping IDs and stores group_labels", {
     skip_if(Sys.getenv("R_COVR") == "true", "covr instrumentation breaks nimbleCode model building")
 

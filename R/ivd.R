@@ -11,6 +11,8 @@
 ##'   Defaults to FALSE; only needed to reconstruct the pointwise
 ##'   log-likelihood. Monitoring them costs O(N x iterations) RAM per chain, so
 ##'   they are off unless requested.
+##' @param extra_monitors Additional model nodes to monitor (e.g. `"nu"` for
+##'   the student-t degrees of freedom). Defaults to none.
 ##' @return
 #' A named \code{list} with two elements:
 #' \itemize{
@@ -47,13 +49,13 @@
 #'
 #' str(out)
 #' }
-build_ivd_model <- function(code, constants, dummy_data, dummy_inits, useWAIC = TRUE, monitor_pointwise = FALSE) {
+build_ivd_model <- function(code, constants, dummy_data, dummy_inits, useWAIC = TRUE, monitor_pointwise = FALSE, extra_monitors = character(0)) {
     model <- nimbleModel(code = code, data = dummy_data, constants = constants, inits = dummy_inits)
     cmodel <- compileNimble(model)
 
     config <- configureMCMC(model)
     if (useWAIC) config$enableWAIC <- useWAIC
-    config$monitors <- c("beta", "zeta", "R", "ss", "sigma_rand", "u")
+    config$monitors <- c("beta", "zeta", "R", "ss", "sigma_rand", "u", extra_monitors)
     ## The per-observation nodes `mu` and `tau` are NOT monitored: each stores
     ## O(N x iterations) values per chain (the dominant memory term). The cluster
     ## outcome plot reconstructs the posterior-mean `mu` from `beta` + `u`, and
@@ -178,8 +180,27 @@ uppertri_mult_diag <- nimbleFunction(
 #'   }
 #'   Partial specifications are filled with the defaults, e.g.
 #'   \code{priors = list(zeta = c(sd = 1))} only tightens the scale
-#'   coefficients. The prior inclusion probability of the spike-and-slab has
-#'   its own argument, \code{ss_prior_p}.
+#'   coefficients. With \code{family = "student"}, \code{nu = c(shape = 2,
+#'   rate = 0.1)} sets the gamma prior of the degrees of freedom (see
+#'   \code{family}). The prior inclusion probability of the spike-and-slab
+#'   has its own argument, \code{ss_prior_p}.
+#' @param family Likelihood for the observations: `"gaussian"` (default) or
+#'   `"student"` for a student-t with estimated degrees of freedom
+#'   \eqn{\nu = 2 + g}, \eqn{g \sim} gamma(`shape`, `rate`) (default mean
+#'   22, guaranteeing a finite residual variance). Heavy-tailed data can
+#'   masquerade as variance heterogeneity under a gaussian likelihood --
+#'   inflating the PIPs of clusters that merely contain outliers. The
+#'   gaussian fit absorbs such tails into the cluster variances (so its own
+#'   `pp_check()` can look fine); when heavy tails are plausible, fit both
+#'   families and compare WAIC and the PIPs -- a small estimated `nu`
+#'   together with collapsing PIPs indicates tails rather than genuine
+#'   variance heterogeneity. The student fit typically needs more
+#'   iterations than the gaussian one to mix well; check the Rhat values
+#'   and [pip_diagnostics()] before interpreting its PIPs.
+#'   Note that with a student-t the scale model describes the *scale*
+#'   \eqn{\tau} of the t distribution, not the SD (which is
+#'   \eqn{\tau\sqrt{\nu/(\nu-2)}}); \eqn{\nu} is reported as `nu` in
+#'   `summary()`.
 #' @param thin Thinning interval for stored posterior draws. Defaults to 1
 #'   (keep every iteration). Larger values cut stored-sample RAM linearly.
 #' @param return_logLik Store the pointwise log-likelihood array
@@ -238,6 +259,7 @@ uppertri_mult_diag <- nimbleFunction(
 #'   \item \code{ss_prior_p}: The prior inclusion probability used in the fit.
 #'   \item \code{priors}: The fully resolved prior hyperparameters
 #'         (defaults plus any user overrides).
+#'   \item \code{family}: The likelihood family used in the fit.
 #'
 #'   \item \code{workers}: Number of parallel chains used.
 #'
@@ -252,7 +274,7 @@ uppertri_mult_diag <- nimbleFunction(
 #' @importFrom coda as.mcmc mcmc.list
 #' @importFrom nimble nimbleCode nimbleModel compileNimble buildMCMC runMCMC
 #' @importFrom rstan monitor
-#' @importFrom stats as.formula model.matrix rlnorm rnorm update.formula dnorm sd
+#' @importFrom stats as.formula model.matrix rlnorm rnorm update.formula dnorm sd dt rgamma
 #' @importFrom utils head str
 #' @export
 #' @examples
@@ -273,7 +295,8 @@ uppertri_mult_diag <- nimbleFunction(
 ##' codaplot(out, parameters =  "Intc")
 ##' codaplot(out, parameters =  "R[scl_Intc, Intc]")
 ##' }
-ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WAIC = TRUE, workers = 4, n_eff = "local", ss_prior_p = 0.5, priors = list(), thin = 1, return_logLik = FALSE, seed = NULL, progress = interactive(), ...) {
+ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WAIC = TRUE, workers = 4, n_eff = "local", ss_prior_p = 0.5, priors = list(), family = c("gaussian", "student"), thin = 1, return_logLik = FALSE, seed = NULL, progress = interactive(), ...) {
+  family <- match.arg(family)
   if(is.null(nburnin)) {
     nburnin <- niter
   }
@@ -314,6 +337,12 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
       sigma_df = prior_spec$sigma_rand[["df"]],
       sigma_scale = prior_spec$sigma_rand[["scale"]],
       lkj_eta = prior_spec$lkj_eta,
+      ## Likelihood family: 0 = gaussian, 1 = student-t with estimated df
+      ## (nu = 2 + nu_raw, nu_raw ~ gamma(nu_shape, nu_rate), so the
+      ## residual variance always exists). Resolved at model build time.
+      student = as.integer(family == "student"),
+      nu_shape = prior_spec$nu[["shape"]],
+      nu_rate = prior_spec$nu[["rate"]],
       bval = matrix(c(rep(1, ncol(data$Z)), rep(ss_prior_p, ncol(data$Z_scale))), ncol = 1)## Prior probability for dbern
   )
   ## Optional reproducibility: seed the random inits and derive a distinct,
@@ -323,6 +352,7 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   ## Nimble inits
   inits <- list(beta = rnorm(constants$K, 5, 10), ## TODO: Check inits
                 zeta =  rnorm(constants$S, 1, 3))
+  if (family == "student") inits$nu_raw <- rgamma(1, shape = 2, rate = 0.1)
   chain_seeds <- if (is.null(seed)) seq_len(workers) else sample.int(.Machine$integer.max, workers)
 
   ## nocov start: the model is NIMBLE's BUGS-style DSL, parsed by nimbleModel()
@@ -331,7 +361,12 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   modelCode <- nimbleCode({
       ## Likelihood components:
       for(i in 1:N) {
-          Y[i] ~ dnorm(mu[i], sd = tau[i]) ## explicitly ask for SD not precision
+          if (student) {
+              ## Student-t: tau is the scale (SD = tau * sqrt(nu/(nu-2)))
+              Y[i] ~ dt(mu = mu[i], sigma = tau[i], df = nu)
+          } else {
+              Y[i] ~ dnorm(mu[i], sd = tau[i]) ## explicitly ask for SD not precision
+          }
           ## Check if K (number of fixed location effects) an S (number of fixed scale effecs)
           ## are greater than 1, if not, use simplified computation to avoid indexing issues in nimble
           ## Location
@@ -391,6 +426,12 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
           ## reconstruct sigma_rand as vector
           sigma_rand[p] ~ T(dt(mu = 0, sigma = sigma_scale, df = sigma_df), 0, )
       }
+      ## Degrees of freedom of the student-t likelihood: nu = 2 + gamma
+      ## keeps the residual variance finite (Juarez & Steel, 2010 style).
+      if (student) {
+          nu_raw ~ dgamma(shape = nu_shape, rate = nu_rate)
+          nu <- 2 + nu_raw
+      }
       ## Correlations between random effects
       ## Lower cholesky of random effects correlation
       Ustar[1:P, 1:P] ~ dlkj_corr_cholesky(eta = lkj_eta, p = P)
@@ -416,10 +457,12 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   ## the draws -- it only silences future's RNG warning.
   quiet <- isTRUE(progress)
   dots <- list(...)
+  extra_monitors <- if (family == "student") "nu" else character(0)
   chain_globals <- list(
       modelCode = modelCode, constants = constants, data = data, inits = inits,
       niter = niter, nburnin = nburnin, WAIC = WAIC, thin = thin,
       return_logLik = return_logLik, quiet = quiet, dots = dots,
+      extra_monitors = extra_monitors,
       build_ivd_model = build_ivd_model,
       run_MCMC_compiled_model = run_MCMC_compiled_model,
       uppertri_mult_diag = uppertri_mult_diag
@@ -431,7 +474,8 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
                   compiled_model <- build_ivd_model(
                       code = modelCode, constants = constants,
                       dummy_data = data, dummy_inits = inits,
-                      useWAIC = WAIC, monitor_pointwise = return_logLik)
+                      useWAIC = WAIC, monitor_pointwise = return_logLik,
+                      extra_monitors = extra_monitors)
                   do.call(run_MCMC_compiled_model,
                           c(list(compiled = compiled_model, seed = chain_seed,
                                  new_data = data, new_inits = inits,
@@ -520,7 +564,13 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
         ## mu and tau for this iteration/chain, vectors of length N
         mu_values <- mu_combined[[chain_idx]][iter, ]
         tau_values <- tau_combined[[chain_idx]][iter, ]
-        logLik_array[iter, chain_idx, ] <- dnorm(data$Y, mean = mu_values, sd = tau_values, log = TRUE)
+        logLik_array[iter, chain_idx, ] <- if (family == "student") {
+          ## non-standard t: tau is the scale
+          nu_value <- combined_chains[[chain_idx]]$samples[iter, "nu"]
+          dt((data$Y - mu_values) / tau_values, df = nu_value, log = TRUE) - log(tau_values)
+        } else {
+          dnorm(data$Y, mean = mu_values, sd = tau_values, log = TRUE)
+        }
       }
     }
     out$logLik_array <- logLik_array
@@ -671,6 +721,8 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   out$ss_prior_p <- ss_prior_p
   ## Fully resolved prior hyperparameters (defaults + user overrides).
   out$priors <- prior_spec
+  ## Likelihood family ("gaussian" or "student"); legacy objects lack it.
+  out$family <- family
   out$workers <- workers
   
   class(out) <- c("ivd", "list")

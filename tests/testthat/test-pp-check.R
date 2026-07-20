@@ -81,6 +81,31 @@ test_that("pp_check.ivd builds both plot types on the fixture", {
   expect_s3_class(p_dens, "ggplot")
 })
 
+test_that(".pp_cluster_sds replicates from a t for student fits", {
+  ## student fit with tau -> 0 still collapses to mu; with tau = 1 and known
+  ## df the replicated SD has mean ~ E[S] of a t: scale * sqrt(df/(df-2))
+  ## corrected for n -- just check it exceeds the gaussian counterpart, which
+  ## is the signature of the heavier tails.
+  fit_g <- .fake_fit(zeta = log(1), n_iter = 600)
+  fit_t <- fit_g
+  fit_t$family <- "student"
+  ## append a constant nu = 3 column to the draws
+  m <- fit_t$samples[[1]]$samples
+  fit_t$samples[[1]]$samples <- cbind(m, "nu" = rep(3, nrow(m)))
+
+  s_g <- ivd:::.pp_cluster_sds(fit_g, ndraws = 600, seed = 5)
+  s_t <- ivd:::.pp_cluster_sds(fit_t, ndraws = 600, seed = 5)
+  ## same scale, df = 3: t SDs are larger on average (Var = df/(df-2) = 3)
+  expect_gt(mean(s_t$rep), mean(s_g$rep))
+  expect_equal(mean(s_t$rep^2) / mean(s_g$rep^2), 3, tolerance = 0.5)
+
+  ## a student fit without stored nu draws errors clearly
+  fit_bad <- fit_g
+  fit_bad$family <- "student"
+  expect_error(ivd:::.pp_cluster_sds(fit_bad, ndraws = 5),
+               "no stored `nu` draws")
+})
+
 test_that("pp_check.ivd honours labels = 'original' and validates probs", {
   skip_if(is.null(ivd_fixture), "fixture missing; run tests/testthat/fixtures/make-ivd-fixture.R")
   fit <- ivd_fixture
