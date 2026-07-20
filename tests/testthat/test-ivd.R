@@ -156,6 +156,32 @@ test_that("ivd monitors neither mu nor tau, and omits logLik, by default (memory
     expect_s3_class(suppressWarnings(plot(out, type = "outcome", label_points = FALSE)), "ggplot")
 })
 
+test_that("ivd runs more chains than workers (compile once per worker)", {
+    skip_if(Sys.getenv("R_COVR") == "true", "covr instrumentation breaks nimbleCode model building")
+
+    out <- suppressWarnings(ivd(
+        location_formula = Y ~ 1 + (1 | grouping),
+        scale_formula = ~ 1 + (1 | grouping),
+        data = data.frame(Y = rnorm(100), grouping = rep(1:10, each = 10)),
+        niter = 100, nburnin = 50, WAIC = TRUE, workers = 2, chains = 3,
+        n_eff = "stan", seed = 1
+    ))
+    expect_equal(length(out$samples), 3)
+    expect_equal(out$chains, 3L)
+    expect_equal(out$workers, 2)
+    ## chains are genuinely distinct runs
+    draws1 <- out$samples[[1]]$samples[, "beta[1]"]
+    draws2 <- out$samples[[2]]$samples[, "beta[1]"]
+    draws3 <- out$samples[[3]]$samples[, "beta[1]"]
+    expect_false(identical(draws1, draws2))
+    expect_false(identical(draws2, draws3))
+    ## downstream methods see 3 chains
+    expect_output(print(out), "3 chains")
+    s <- suppressWarnings(summary(out))
+    expect_equal(s$chains, 3)
+    expect_length(grep("^chain\\d+$", names(pip_diagnostics(out))), 3)
+})
+
 test_that("ivd fits a student-t likelihood and monitors nu", {
     skip_if(Sys.getenv("R_COVR") == "true", "covr instrumentation breaks nimbleCode model building")
 
@@ -289,4 +315,17 @@ test_that("ivd manages zero workers", {
         data = data.frame(Y = rnorm(100), X = 1:100),
         niter = 100, nburnin = 50, WAIC = TRUE, workers = 0
     ))
+})
+
+test_that("ivd rejects an invalid chains argument", {
+    expect_error(ivd(
+        location_formula = ~1, scale_formula = ~1,
+        data = data.frame(Y = rnorm(100), X = 1:100),
+        niter = 100, chains = 0
+    ), "positive integer")
+    expect_error(ivd(
+        location_formula = ~1, scale_formula = ~1,
+        data = data.frame(Y = rnorm(100), X = 1:100),
+        niter = 100, chains = 2.5
+    ), "positive integer")
 })

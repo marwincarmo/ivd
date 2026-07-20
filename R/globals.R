@@ -4,8 +4,8 @@ utils::globalVariables(c('N', 'K', 'Kr', 'X', 'groupid', 'Z', 'S', 'Sr', 'zeta',
 utils::globalVariables(c('pip', 'id', 'label', 'WAIC', 'zscore', 'geom_text_repel'))
 ## globals for plot.pip_sensitivity
 utils::globalVariables(c('prior_p', 'cluster_id', 'group'))
-## chain_seed is supplied to each worker via future(..., globals =) in ivd()
-utils::globalVariables('chain_seed')
+## my_seeds is supplied to each worker via future(..., globals =) in ivd()
+utils::globalVariables('my_seeds')
 ## globals for pp_check.ivd (ggplot aes columns)
 utils::globalVariables(c('ordered', 'lo_outer', 'hi_outer', 'lo_inner',
                          'hi_inner', 'med', 'obs', 'outside', 'value', 'rep_id'))

@@ -2,6 +2,12 @@
 
 ## New features
 
+* New `chains` argument in `ivd()`, decoupled from `workers`: chains are
+  distributed over the worker processes, and each worker compiles the model
+  once and reuses it for its chains -- so extra chains cost sampling time
+  but no additional compilation. `chains` defaults to `workers`, preserving
+  the behaviour (and exact draws) of existing code. `summary()` now labels
+  the count "Chains:" instead of "Chains (workers):".
 * New `family = "student"` option in `ivd()`: a student-t likelihood with
   estimated degrees of freedom (`nu = 2 + gamma(shape, rate)`, reported as
   `nu` in `summary()`; prior tunable via `priors = list(nu = ...)`). Heavy

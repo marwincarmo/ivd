@@ -183,6 +183,10 @@ test_that(".progress_line renders a single overwriting spinner/elapsed line", {
   expect_match(line, "elapsed")
   expect_false(grepl("\\[", line))                    # no completion bar
   expect_match(.progress_line(1, t0), "fitting 1 chain\\b") # singular form
+
+  ## chains > workers shows the worker count; chains == workers stays clean
+  expect_match(.progress_line(8, t0, workers = 2), "fitting 8 chains \\(2 workers\\)")
+  expect_false(grepl("workers", .progress_line(4, t0, workers = 4)))
 })
 
 test_that(".reconstruct_mu_means errors when design matrices are absent", {

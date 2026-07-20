@@ -125,11 +125,13 @@ prepare_data_for_nimble <- function(data, location_formula, scale_formula) {
 ##' @param spinner Optional single-character spinner frame.
 ##' @return A length-1 character string.
 ##' @keywords internal
-.progress_line <- function(total, t0, spinner = "") {
+.progress_line <- function(total, t0, spinner = "", workers = total) {
   el <- as.integer(as.numeric(difftime(Sys.time(), t0, units = "secs")))
   elapsed <- sprintf("%02d:%02d", el %/% 60L, el %% 60L)
-  sprintf("\r%s ivd: fitting %d %s | %s elapsed ",
-          spinner, total, if (total == 1) "chain" else "chains", elapsed)
+  on_workers <- if (workers < total) sprintf(" (%d workers)", workers) else ""
+  sprintf("\r%s ivd: fitting %d %s%s | %s elapsed ",
+          spinner, total, if (total == 1) "chain" else "chains", on_workers,
+          elapsed)
 }
 
 ##' Extract samples to mcmc object

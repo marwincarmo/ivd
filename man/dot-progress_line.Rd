@@ -4,7 +4,7 @@
 \alias{.progress_line}
 \title{Render a single-line, carriage-return progress string for parallel chains}
 \usage{
-.progress_line(total, t0, spinner = "")
+.progress_line(total, t0, spinner = "", workers = total)
 }
 \arguments{
 \item{total}{Integer number of chains (workers) being fit.}

@@ -189,7 +189,7 @@ summary.ivd <- function(object, digits = 3, pip = 'all', labels = c("index", "or
   out <- list(
     table = table,
     pip = pip,
-    chains = object$workers,
+    chains = length(object$samples),
     has_waic = !is.null(object$samples[[1]]$WAIC),
     waic = average_waic,
     lppd = average_lppd,
@@ -209,7 +209,7 @@ summary.ivd <- function(object, digits = 3, pip = 'all', labels = c("index", "or
 print.summary.ivd <- function(x, ...) {
   cat("Summary statistics for ivd model:\n")
   .newline
-  cat("Chains (workers):", x$chains, "\n\n")
+  cat("Chains:", x$chains, "\n\n")
 
   print(x$table)
 

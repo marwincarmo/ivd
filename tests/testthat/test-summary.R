@@ -9,7 +9,7 @@ test_that("summary.ivd prints the expected header, chain count and WAIC", {
 
   ## summary() assembles silently; print.summary.ivd() renders.
   expect_output(print(suppressWarnings(summary(ivd_fixture))), "Summary statistics for ivd model:")
-  expect_output(print(suppressWarnings(summary(ivd_fixture))), "Chains \\(workers\\):")
+  expect_output(print(suppressWarnings(summary(ivd_fixture))), "Chains:")
   ## fixture is fit with WAIC = TRUE
   expect_output(print(suppressWarnings(summary(ivd_fixture))), "WAIC:")
 })

@@ -14,6 +14,7 @@ ivd(
   nburnin = NULL,
   WAIC = TRUE,
   workers = 4,
+  chains = NULL,
   n_eff = "local",
   ss_prior_p = 0.5,
   priors = list(),
@@ -38,7 +39,15 @@ ivd(
 
 \item{WAIC}{Compute WAIC, defaults to 'TRUE'}
 
-\item{workers}{Number of parallel R processes -- doubles as 'chains' argument}
+\item{workers}{Number of parallel R processes the chains are distributed
+over. Defaults to 4. Capped at \code{chains} (extra workers would idle).}
+
+\item{chains}{Number of MCMC chains. Defaults to \code{workers} (the
+historical one-chain-per-worker behaviour). When \code{chains > workers},
+each worker compiles the model once and runs its chains sequentially on
+the compiled object -- extra chains cost sampling time but no extra
+compilation; chains after a worker's first warm-start from the previous
+chain's state (absorbed by the burnin).}
 
 \item{n_eff}{Use stan::monitor function or built local: 'stan' vs. 'local'}
 
@@ -150,7 +159,8 @@ index \code{j} back to the user's original grouping IDs.
 (defaults plus any user overrides).
 \item \code{family}: The likelihood family used in the fit.
 
-\item \code{workers}: Number of parallel chains used.
+\item \code{workers}: Number of parallel worker processes used.
+\item \code{chains}: Number of MCMC chains.
 
 \item \code{...}: Additional elements created internally and used for
 downstream S3 methods (\code{print()}, \code{summary()}, etc.).

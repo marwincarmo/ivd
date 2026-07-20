@@ -159,7 +159,14 @@ uppertri_mult_diag <- nimbleFunction(
 #' @param niter Total number of MCMC iterations after burnin
 #' @param nburnin Number of burnin iterations, defaults to the same as niter
 #' @param WAIC Compute WAIC, defaults to 'TRUE'
-#' @param workers Number of parallel R processes -- doubles as 'chains' argument
+#' @param workers Number of parallel R processes the chains are distributed
+#'   over. Defaults to 4. Capped at `chains` (extra workers would idle).
+#' @param chains Number of MCMC chains. Defaults to `workers` (the
+#'   historical one-chain-per-worker behaviour). When `chains > workers`,
+#'   each worker compiles the model once and runs its chains sequentially on
+#'   the compiled object -- extra chains cost sampling time but no extra
+#'   compilation; chains after a worker's first warm-start from the previous
+#'   chain's state (absorbed by the burnin).
 #' @param n_eff Use stan::monitor function or built local: 'stan' vs. 'local'
 #' @param ss_prior_p Prior inclusion probability. Defaults to '.5'.
 #' @param priors Optional named list overriding the prior hyperparameters.
@@ -261,7 +268,8 @@ uppertri_mult_diag <- nimbleFunction(
 #'         (defaults plus any user overrides).
 #'   \item \code{family}: The likelihood family used in the fit.
 #'
-#'   \item \code{workers}: Number of parallel chains used.
+#'   \item \code{workers}: Number of parallel worker processes used.
+#'   \item \code{chains}: Number of MCMC chains.
 #'
 #'   \item \code{...}: Additional elements created internally and used for
 #'         downstream S3 methods (\code{print()}, \code{summary()}, etc.).
@@ -295,8 +303,17 @@ uppertri_mult_diag <- nimbleFunction(
 ##' codaplot(out, parameters =  "Intc")
 ##' codaplot(out, parameters =  "R[scl_Intc, Intc]")
 ##' }
-ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WAIC = TRUE, workers = 4, n_eff = "local", ss_prior_p = 0.5, priors = list(), family = c("gaussian", "student"), thin = 1, return_logLik = FALSE, seed = NULL, progress = interactive(), ...) {
+ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WAIC = TRUE, workers = 4, chains = NULL, n_eff = "local", ss_prior_p = 0.5, priors = list(), family = c("gaussian", "student"), thin = 1, return_logLik = FALSE, seed = NULL, progress = interactive(), ...) {
   family <- match.arg(family)
+  ## chains defaults to workers, preserving the historical
+  ## one-chain-per-worker behaviour of every existing call.
+  if (is.null(chains)) chains <- workers
+  if (!is.numeric(chains) || length(chains) != 1 || chains < 1 || chains != round(chains)) {
+    stop("`chains` must be a single positive integer.", call. = FALSE)
+  }
+  chains <- as.integer(chains)
+  ## More workers than chains would sit idle.
+  workers_used <- min(workers, chains)
   if(is.null(nburnin)) {
     nburnin <- niter
   }
@@ -353,7 +370,7 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   inits <- list(beta = rnorm(constants$K, 5, 10), ## TODO: Check inits
                 zeta =  rnorm(constants$S, 1, 3))
   if (family == "student") inits$nu_raw <- rgamma(1, shape = 2, rate = 0.1)
-  chain_seeds <- if (is.null(seed)) seq_len(workers) else sample.int(.Machine$integer.max, workers)
+  chain_seeds <- if (is.null(seed)) seq_len(chains) else sample.int(.Machine$integer.max, chains)
 
   ## nocov start: the model is NIMBLE's BUGS-style DSL, parsed by nimbleModel()
   ## rather than executed as R. covr's line-counting injection corrupts it
@@ -444,17 +461,24 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
 
   ## IMPORTANT: future loads the installed library on its workers - changes in the package that are not in the library(ivd)
   ## are not loaded onto the workers! Edits to build_ivd_model / run_MCMC_compiled_model only take effect after reinstalling.
-  future::plan(multisession, workers = workers)
+  future::plan(multisession, workers = workers_used)
 
-  ## One future per chain (workers == chains). Manual futures (rather than
-  ## future_lapply) let the main process poll resolved() and render a live
-  ## progress line while the workers compile and sample. With `multisession`
-  ## the workers are separate processes whose NIMBLE output is buffered and only
-  ## relayed on collection; when `progress = TRUE` it is suppressed in-worker so
-  ## the live line is the only console output. Results stay deterministic: each
-  ## chain's draws are fixed by `runMCMC(setSeed = chain_seeds[x])` plus the
-  ## inits, so the future's own `seed = TRUE` (a valid RNG stream) never affects
-  ## the draws -- it only silences future's RNG warning.
+  ## One future per *worker*; each worker compiles the model once and then
+  ## runs its assigned chains sequentially on the compiled object (with
+  ## chains > workers this saves one full compile per extra chain; chains
+  ## after the first warm-start from the previous chain's state, which the
+  ## burnin absorbs). Round-robin assignment; results are re-flattened into
+  ## chain order below. Manual futures (rather than future_lapply) let the
+  ## main process poll resolved() and render a live progress line while the
+  ## workers compile and sample. With `multisession` the workers are separate
+  ## processes whose NIMBLE output is buffered and only relayed on
+  ## collection; when `progress = TRUE` it is suppressed in-worker so the
+  ## live line is the only console output. Results stay deterministic: each
+  ## chain's draws are fixed by `runMCMC(setSeed = chain_seeds[k])` plus the
+  ## inits and its position in the worker's sequence, so the future's own
+  ## `seed = TRUE` (a valid RNG stream) never affects the draws -- it only
+  ## silences future's RNG warning.
+  chain_sets <- split(seq_len(chains), rep_len(seq_len(workers_used), chains))
   quiet <- isTRUE(progress)
   dots <- list(...)
   extra_monitors <- if (family == "student") "nu" else character(0)
@@ -467,32 +491,34 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
       run_MCMC_compiled_model = run_MCMC_compiled_model,
       uppertri_mult_diag = uppertri_mult_diag
   )
-  fits <- lapply(seq_len(workers), function(x) {
+  fits <- lapply(seq_len(workers_used), function(x) {
       future::future(
           {
-              run_one <- function() {
+              run_set <- function() {
                   compiled_model <- build_ivd_model(
                       code = modelCode, constants = constants,
                       dummy_data = data, dummy_inits = inits,
                       useWAIC = WAIC, monitor_pointwise = return_logLik,
                       extra_monitors = extra_monitors)
-                  do.call(run_MCMC_compiled_model,
-                          c(list(compiled = compiled_model, seed = chain_seed,
-                                 new_data = data, new_inits = inits,
-                                 niter = niter, nburnin = nburnin,
-                                 useWAIC = WAIC, thin = thin), dots))
+                  lapply(my_seeds, function(s) {
+                      do.call(run_MCMC_compiled_model,
+                              c(list(compiled = compiled_model, seed = s,
+                                     new_data = data, new_inits = inits,
+                                     niter = niter, nburnin = nburnin,
+                                     useWAIC = WAIC, thin = thin), dots))
+                  })
               }
               if (quiet) {
                   res <- NULL
                   utils::capture.output(
-                      suppressMessages(suppressWarnings(res <- run_one())))
+                      suppressMessages(suppressWarnings(res <- run_set())))
                   res
               } else {
-                  run_one()
+                  run_set()
               }
           },
           seed = TRUE, packages = "nimble",
-          globals = c(chain_globals, list(chain_seed = chain_seeds[x]))
+          globals = c(chain_globals, list(my_seeds = chain_seeds[chain_sets[[x]]]))
       )
   })
 
@@ -502,24 +528,33 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   ## spinner/timer honestly signal "working" without implying smooth progress.
   if (isTRUE(progress)) {
       t0 <- Sys.time()
-      message("ivd: compiling and sampling ", workers,
-              if (workers == 1) " chain" else " chains", " in parallel ...")
+      message("ivd: compiling and sampling ", chains,
+              if (chains == 1) " chain" else " chains",
+              if (chains == workers_used) " in parallel ..." else
+                  sprintf(" on %d workers ...", workers_used))
       spin <- c("|", "/", "-", "\\")
       tick <- 0L
       repeat {
           done <- sum(vapply(fits, future::resolved, logical(1)))
           tick <- tick + 1L
-          cat(.progress_line(workers, t0, spin[(tick - 1L) %% 4L + 1L]))
+          cat(.progress_line(chains, t0, spin[(tick - 1L) %% 4L + 1L],
+                             workers = workers_used))
           utils::flush.console()
-          if (done == workers) break
+          if (done == workers_used) break
           Sys.sleep(0.4)
       }
       cat("\n")
   }
 
   ## Collect results: re-throws any worker error, and relays the buffered
-  ## NIMBLE output when it was not suppressed (progress = FALSE).
-  results <- lapply(fits, future::value)
+  ## NIMBLE output when it was not suppressed (progress = FALSE). Each future
+  ## returns the list of results for its chain set; scatter them back into
+  ## chain order.
+  results_by_worker <- lapply(fits, future::value)
+  results <- vector("list", chains)
+  for (w in seq_along(chain_sets)) {
+    results[chain_sets[[w]]] <- results_by_worker[[w]]
+  }
   
   ## Prepare object to be returned
   out <- list()
@@ -724,6 +759,8 @@ ivd <- function(location_formula, scale_formula, data, niter, nburnin = NULL, WA
   ## Likelihood family ("gaussian" or "student"); legacy objects lack it.
   out$family <- family
   out$workers <- workers
+  ## Number of MCMC chains; equals `workers` unless `chains` was supplied.
+  out$chains <- chains
   
   class(out) <- c("ivd", "list")
   return(out)
