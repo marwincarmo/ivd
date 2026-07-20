@@ -152,6 +152,95 @@ top <- pips[order(pips$pip, decreasing = TRUE), ][1:3, ]
 plot(sens, clusters = top$cluster_id)
 ```
 
+## Decision rules and PIP diagnostics
+
+The conventional PIP threshold of 0.75 is arbitrary. `pip_fdr()` replaces it
+with a Bayesian false discovery rate rule: it selects the largest set of
+schools whose expected FDR stays below a target level and reports the
+implied, data-adaptive PIP threshold:
+
+```{r}
+pip_fdr(out, fdr = 0.05)
+```
+
+PIPs are posterior means of binary indicators, so the usual Rhat is not
+informative for them. `pip_diagnostics()` reports per-chain PIPs, each PIP's
+Monte Carlo error, and flags schools whose classification differs between
+chains -- those should not be classified either way without more iterations:
+
+```{r}
+diag <- pip_diagnostics(out)
+print(diag)
+```
+
+## Posterior predictive check
+
+`pp_check()` replicates data from the posterior and compares every school's
+*observed* within-school SD with its posterior predictive interval -- a
+direct check of the quantity the spike-and-slab makes claims about:
+
+```{r}
+pp_check(out, ndraws = 200, seed = 1)
+```
+
+## Beyond the defaults
+
+**Priors.** The prior hyperparameters are tunable through a named list; any
+subset can be changed and the rest keep their defaults:
+
+```{r eval = FALSE}
+out <- ivd(..., priors = list(zeta = c(sd = 1), lkj_eta = 2))
+```
+
+**Robust likelihood.** Heavy-tailed data can masquerade as variance
+heterogeneity: under the gaussian likelihood, schools that merely contain
+outliers can get large PIPs. `family = "student"` fits a student-t
+likelihood with estimated degrees of freedom (reported as `nu` in the
+summary) that absorbs such tails; see
+`vignette("convergence-and-robustness", package = "ivd")` for a worked
+demonstration.
+
+```{r eval = FALSE}
+out_t <- ivd(..., family = "student")
+```
+
+**Chains and workers.** The number of MCMC chains is decoupled from the
+number of parallel processes; each worker compiles the model once and reuses
+it for its chains, so extra chains cost sampling time but no additional
+compilation:
+
+```{r eval = FALSE}
+out <- ivd(..., chains = 8, workers = 4)
+```
+
+## Simulating data with known deviant clusters
+
+`simulate_ivd()` generates data from the intercept-only MELSM with a chosen
+subset of clusters whose within-cluster SD deviates by a known factor --
+useful for power analysis and for validating the workflow end to end:
+
+```{r}
+sim <- simulate_ivd(J = 40, n_j = 50, deviant_clusters = c(5, 13, 27, 38),
+                    deviant_factor = 2.5, seed = 123)
+sim
+```
+
+## Using the posterior elsewhere
+
+`as.mcmc.list()` (coda) and `as_draws()` (posterior) expose the samples
+under the same readable labels used by `summary()`, which opens up
+bayesplot, tidybayes, and the posterior toolchain:
+
+```{r}
+post <- coda::as.mcmc.list(out)
+colnames(post[[1]])[1:8]
+```
+
+```{r}
+posterior::summarise_draws(posterior::subset_draws(
+  posterior::as_draws(out), variable = c("Intc", "scl_Intc")))
+```
+
 ## Plots
 
 ### Posterior inclusion probability plot (PIP)

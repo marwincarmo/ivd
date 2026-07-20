@@ -110,7 +110,7 @@ readily interpreted as Bayes Factors.
 
     summary(out)
     #> Summary statistics for ivd model:
-    #> Chains (workers): 4 
+    #> Chains: 4 
     #> 
     #>                              Mean    SD Time-series SE   2.5%    50%  97.5%
     #> R[scl_Intc, Intc]          -0.684 0.175          0.006 -0.957 -0.706 -0.287
@@ -525,35 +525,146 @@ schools can be singled out:
 
 <img src="man/figures/README-unnamed-chunk-10-1.png" alt="" width="100%" />
 
+## Decision rules and PIP diagnostics
+
+The conventional PIP threshold of 0.75 is arbitrary. `pip_fdr()`
+replaces it with a Bayesian false discovery rate rule: it selects the
+largest set of schools whose expected FDR stays below a target level and
+reports the implied, data-adaptive PIP threshold:
+
+    pip_fdr(out, fdr = 0.05)
+    #> Bayesian FDR decision rule (target FDR <= 0.05)
+    #> 
+    #> Random scale effect: (Intercept)
+    #>   Selected 3 of 160 clusters (implied PIP threshold >= 0.892, expected FDR = 0.041):
+    #>  cluster_id   pip local_fdr cum_fdr
+    #>          46 0.999    0.0007 0.00070
+    #>           9 0.987    0.0131 0.00693
+    #>         114 0.892    0.1080 0.04063
+
+PIPs are posterior means of binary indicators, so the usual Rhat is not
+informative for them. `pip_diagnostics()` reports per-chain PIPs, each
+PIP’s Monte Carlo error, and flags schools whose classification differs
+between chains – those should not be classified either way without more
+iterations:
+
+    diag <- pip_diagnostics(out)
+    print(diag)
+    #> PIP Monte Carlo diagnostics (4 chains, classification at PIP >= 0.75)
+    #> 
+    #>   Max. MCSE of a PIP:              0.012
+    #>   Max. between-chain PIP range:    0.059
+    #>   3 of 160 PIPs are classified inconsistently across chains (see below);
+    #>   consider more iterations before classifying these clusters.
+    #> 
+    #>    scale_var cluster_id   pip chain1 chain2 chain3 chain4    mcse  range
+    #>  (Intercept)         95 0.751  0.751  0.743  0.763  0.746 0.00431 0.0196
+    #>  (Intercept)        124 0.752  0.741  0.752  0.757  0.760 0.00414 0.0186
+    #>  (Intercept)        153 0.762  0.746  0.760  0.776  0.767 0.00620 0.0294
+
+## Posterior predictive check
+
+`pp_check()` replicates data from the posterior and compares every
+school’s *observed* within-school SD with its posterior predictive
+interval – a direct check of the quantity the spike-and-slab makes
+claims about:
+
+    pp_check(out, ndraws = 200, seed = 1)
+    #> Warning in pp_check.ivd(out, ndraws = 200, seed = 1): 1 cluster(s) with a
+    #> single observation were dropped from the check.
+
+<img src="man/figures/README-unnamed-chunk-13-1.png" alt="" width="100%" />
+
+## Beyond the defaults
+
+**Priors.** The prior hyperparameters are tunable through a named list;
+any subset can be changed and the rest keep their defaults:
+
+    out <- ivd(..., priors = list(zeta = c(sd = 1), lkj_eta = 2))
+
+**Robust likelihood.** Heavy-tailed data can masquerade as variance
+heterogeneity: under the gaussian likelihood, schools that merely
+contain outliers can get large PIPs. `family = "student"` fits a
+student-t likelihood with estimated degrees of freedom (reported as `nu`
+in the summary) that absorbs such tails; see
+`vignette("convergence-and-robustness", package = "ivd")` for a worked
+demonstration.
+
+    out_t <- ivd(..., family = "student")
+
+**Chains and workers.** The number of MCMC chains is decoupled from the
+number of parallel processes; each worker compiles the model once and
+reuses it for its chains, so extra chains cost sampling time but no
+additional compilation:
+
+    out <- ivd(..., chains = 8, workers = 4)
+
+## Simulating data with known deviant clusters
+
+`simulate_ivd()` generates data from the intercept-only MELSM with a
+chosen subset of clusters whose within-cluster SD deviates by a known
+factor – useful for power analysis and for validating the workflow end
+to end:
+
+    sim <- simulate_ivd(J = 40, n_j = 50, deviant_clusters = c(5, 13, 27, 38),
+                        deviant_factor = 2.5, seed = 123)
+    sim
+    #> Simulated MELSM data: 40 clusters, 2000 observations
+    #>   Baseline within-cluster SD: 1 (location grand mean 0, tau_loc 0.5)
+    #>   4 deviant cluster(s): 5, 13, 27, 38 (SD factor 2.5)
+    #> 
+    #> Fit with, e.g.:
+    #>   ivd(y ~ 1 + (1 | id), ~ 1 + (1 | id), data = <sim>$data, ...)
+
+## Using the posterior elsewhere
+
+`as.mcmc.list()` (coda) and `as_draws()` (posterior) expose the samples
+under the same readable labels used by `summary()`, which opens up
+bayesplot, tidybayes, and the posterior toolchain:
+
+    post <- coda::as.mcmc.list(out)
+    colnames(post[[1]])[1:8]
+    #> [1] "R[scl_Intc, Intc]"      "Intc"                   "student_ses"           
+    #> [4] "school_ses"             "student_ses:school_ses" "sd_Intc"               
+    #> [7] "sd_scl_Intc"            "pip[Intc, 1]"
+
+    posterior::summarise_draws(posterior::subset_draws(
+      posterior::as_draws(out), variable = c("Intc", "scl_Intc")))
+    #> # A tibble: 2 × 10
+    #>   variable   mean median      sd     mad      q5    q95  rhat ess_bulk ess_tail
+    #>   <chr>     <dbl>  <dbl>   <dbl>   <dbl>   <dbl>  <dbl> <dbl>    <dbl>    <dbl>
+    #> 1 Intc      0.129  0.129 0.0252  0.0233   0.0900  0.169  1.01     304.     250.
+    #> 2 scl_Intc -0.234 -0.234 0.00844 0.00837 -0.248  -0.220  1.00    1366.    2932.
+
 ## Plots
 
 ### Posterior inclusion probability plot (PIP)
 
     plot(out, type = "pip")
 
-<img src="man/figures/README-unnamed-chunk-11-1.png" alt="" width="100%" />
+<img src="man/figures/README-unnamed-chunk-20-1.png" alt="" width="100%" />
 
 ### PIP vs. Within-cluster SD
 
     plot(out, type =  "funnel")
 
-<img src="man/figures/README-unnamed-chunk-12-1.png" alt="" width="100%" />
+<img src="man/figures/README-unnamed-chunk-21-1.png" alt="" width="100%" />
 
 ### PIP vs. math achievement
 
     plot(out, type =  "outcome")
 
-<img src="man/figures/README-unnamed-chunk-13-1.png" alt="" width="100%" />
+<img src="man/figures/README-unnamed-chunk-22-1.png" alt="" width="100%" />
 
 ### Diagnostic plots based on coda plots:
 
     codaplot(out, parameters =  "Intc")
 
-<img src="man/figures/README-unnamed-chunk-15-1.png" alt="" width="100%" />
+<img src="man/figures/README-unnamed-chunk-24-1.png" alt="" width="100%" />
 
     codaplot(out, parameters =  "R[scl_Intc, Intc]")
 
-<img src="man/figures/README-unnamed-chunk-15-2.png" alt="" width="100%" />
+<img src="man/figures/README-unnamed-chunk-24-2.png" alt="" width="100%" />
 
 ## Acknowledgment
 

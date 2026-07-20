@@ -26,7 +26,19 @@ that exhibit unusually high or low consistency, distinguishing them from the pop
 - `pip_sensitivity()` shows how the PIPs -- and the resulting
   classifications -- would change under different prior inclusion
   probabilities, computed analytically without refitting.
-- `codaplot()` provides MCMC diagnostic plots with readable parameter names.
+- `pip_fdr()` selects deviant units by controlling the Bayesian false
+  discovery rate instead of an arbitrary fixed PIP cutoff, and
+  `pip_diagnostics()` reports each PIP's Monte Carlo error and
+  between-chain agreement.
+- `pp_check()` runs a posterior predictive check of the within-cluster SDs,
+  and `family = "student"` provides a robust t likelihood so that heavy
+  tails are not mistaken for variance heterogeneity.
+- Priors are tunable (`priors =`), chains are decoupled from workers
+  (`chains =`), and `simulate_ivd()` generates data with known deviant
+  clusters for power analysis and validation.
+- `as.mcmc.list()` and `as_draws()` bridge fits into
+  coda/bayesplot/tidybayes/posterior; `codaplot()` provides MCMC diagnostic
+  plots with readable parameter names.
 
 ## Installation
 
