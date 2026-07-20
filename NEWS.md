@@ -2,6 +2,11 @@
 
 ## New features
 
+* Two new vignettes: *Interpreting posterior inclusion probabilities*
+  (PIPs, decision rules, prior sensitivity, Monte Carlo diagnostics, on a
+  simulation with known deviant clusters) and *Convergence and robustness*
+  (spike-and-slab convergence pitfalls, and how heavy tails masquerade as
+  variance heterogeneity -- with the student-t remedy).
 * New `chains` argument in `ivd()`, decoupled from `workers`: chains are
   distributed over the worker processes, and each worker compiles the model
   once and reuses it for its chains -- so extra chains cost sampling time

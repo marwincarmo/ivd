@@ -8,6 +8,7 @@ navbar:
     left:
       - home
       - getting-started
+      - articles
       - reference
   components:
     getting-started:

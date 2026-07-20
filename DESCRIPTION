@@ -30,8 +30,11 @@ Imports:
     rstan,
     ggrepel
 Suggests:
+    knitr,
     posterior,
+    rmarkdown,
     testthat (>= 3.0.0)
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 BugReports: https://github.com/consistentlyBetter/ivd/issues
 Depends:
